@@ -22,6 +22,7 @@ uvicorn app:app --reload --host 127.0.0.1 --port 8000
 
 Open `http://127.0.0.1:8000`. The dashboard loads the latest 80 speech rows and then polls the database once per second through a single SSE connection. It reconnects automatically after an interrupted stream. The recorder must be running to produce new rows; the dashboard does not start or stop audio capture.
 
+Consecutive rows from the same speaker are grouped into one chat bubble, with each transcript segment on a new line.
 By default the server listens only on localhost. Do not expose transcript content to a network without adding appropriate authentication and transport security.
 
 ## Data handling
