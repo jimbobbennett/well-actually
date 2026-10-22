@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from .audio_capture import build_raw_capture_command
 from .led_indicator import LedIndicator, LedIndicatorError
+from .pavlok import PavlokClient, PavlokClientError
 
 LOGGER = logging.getLogger("well_actually_processing")
 INSERT_SPEECH_LOG_SQL = """
@@ -157,6 +158,7 @@ def _run_transcription_session(
     store: SpeechLogStore,
     stop_event: threading.Event,
     led_indicator: LedIndicator,
+    pavlok_client: PavlokClient | None,
 ) -> None:
     device = os.environ.get("WELL_ACTUALLY_AUDIO_DEVICE", "hw:CARD=M0,DEV=0")
     sample_rate = 16_000
@@ -190,7 +192,7 @@ def _run_transcription_session(
         if result.reason != speechsdk.ResultReason.RecognizedSpeech:
             return
         if contains_well_actually_phrase(result.text or ""):
-            _on_well_actually_detected(led_indicator)
+            _on_well_actually_detected(led_indicator, pavlok_client)
         try:
             origin = stream_started_at[0]
             if origin is None:
@@ -280,16 +282,31 @@ def _run_transcription_session(
         raise ServiceError(session_errors[-1])
 
 
-def _on_well_actually_detected(led_indicator: LedIndicator) -> None:
+def _on_well_actually_detected(
+    led_indicator: LedIndicator,
+    pavlok_client: PavlokClient | None = None,
+) -> None:
     LOGGER.info("Recognized phrase 'Well actually'; requesting a 5-second lightning bolt.")
     try:
         led_indicator.show_phrase_detected()
     except LedIndicatorError:
         LOGGER.exception("Could not signal the LED matrix after phrase recognition.")
+    if pavlok_client is None:
+        return
+    try:
+        pavlok_client.send_vibe()
+        LOGGER.info("Sent Pavlok vibe request after phrase recognition.")
+    except PavlokClientError:
+        LOGGER.exception("Could not send the Pavlok vibe request.")
 
 
 def run_service(stop_event: threading.Event) -> None:
     speechsdk = _load_speech_sdk()
+    pavlok_client = PavlokClient.from_environment()
+    if pavlok_client is None:
+        LOGGER.warning(
+            "Pavlok integration is disabled; set WAKE_WORD_API_TOKEN to enable it."
+        )
     led_indicator = LedIndicator(
         os.environ.get(
             "WELL_ACTUALLY_LED_SOCKET",
@@ -305,6 +322,7 @@ def run_service(stop_event: threading.Event) -> None:
                     store,
                     stop_event,
                     led_indicator,
+                    pavlok_client,
                 )
             except Exception:
                 if stop_event.is_set():
