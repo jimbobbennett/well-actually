@@ -1,0 +1,19 @@
+[Unit]
+Description=Well Actually audio processing service
+Wants=network-online.target
+After=network-online.target sound.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/well-actually-processing
+EnvironmentFile=%h/.config/well-actually-processing/service.env
+ExecStartPre=/usr/bin/arduino-app-cli app start %h/well-actually-processing/unoq-led-indicator
+ExecStart=%h/well-actually-processing/.venv/bin/python -m well_actually_processing
+ExecStopPost=-/usr/bin/arduino-app-cli app stop %h/well-actually-processing/unoq-led-indicator
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=300
+TimeoutStopSec=45
+
+[Install]
+WantedBy=default.target
