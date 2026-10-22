@@ -117,6 +117,8 @@ class PavlokClientTests(unittest.TestCase):
             PavlokClient("test-token", stimulus_level=0)
         with self.assertRaisesRegex(ValueError, "between 1 and 100"):
             PavlokClient("test-token", stimulus_level=101)
+        with self.assertRaisesRegex(ValueError, "between 1 and 100"):
+            PavlokClient("test-token", stimulus_level=50.5)
 
     @patch.dict("os.environ", {}, clear=True)
     def test_environment_configuration_is_optional(self):

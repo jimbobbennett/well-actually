@@ -39,6 +39,7 @@ class PavlokClient:
             raise ValueError(f"Pavlok stimulus type must be one of: {allowed_types}.")
         if (
             isinstance(stimulus_level, bool)
+            or not isinstance(stimulus_level, int)
             or not MIN_STIMULUS_LEVEL <= stimulus_level <= MAX_STIMULUS_LEVEL
         ):
             raise ValueError(
