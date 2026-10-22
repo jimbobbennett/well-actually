@@ -76,6 +76,8 @@ function createZapIndicator() {
 
 function appendMessage(record, eventId) {
   if (!rememberEvent(eventId)) return;
+  const shouldScrollToLatest =
+    feed.scrollHeight - feed.clientHeight - feed.scrollTop <= 8;
   emptyState.hidden = true;
 
   const speakerId = String(record.sid ?? "");
@@ -135,7 +137,9 @@ function appendMessage(record, eventId) {
     feedCount.textContent = `${messageCount} ${messageCount === 1 ? "message" : "messages"}`;
   }
 
-  feed.scrollTop = feed.scrollHeight;
+  if (shouldScrollToLatest) {
+    feed.scrollTop = feed.scrollHeight;
+  }
 }
 
 function setTheme(theme) {
