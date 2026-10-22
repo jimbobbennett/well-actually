@@ -1,9 +1,31 @@
+import asyncio
 import unittest
 from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
-from app import app, encode_sse, parse_cursor, serialize_record
+from app import (
+    app,
+    collect_new_zap_updates,
+    encode_sse,
+    fetch_zapped,
+    parse_cursor,
+    serialize_record,
+)
+
+
+class FakeCursor:
+    def __init__(self, rows):
+        self.rows = rows
+        self.query = None
+        self.parameters = None
+
+    async def execute(self, query, parameters):
+        self.query = query
+        self.parameters = parameters
+
+    async def fetchall(self):
+        return self.rows
 
 
 class DashboardTests(unittest.TestCase):
@@ -12,8 +34,12 @@ class DashboardTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Conversation", response.text)
-        self.assertIn('id="theme-toggle"', response.text)
-        self.assertIn('aria-label="Dark mode"', response.text)
+        self.assertIn('/static/Well-Actually-Zapped-Pixel-Icon.png', response.text)
+        self.assertNotIn("🙊", response.text)
+        self.assertIn('data-theme="dark"', response.text)
+        self.assertIn('id="connection-label" class="sr-only"', response.text)
+        self.assertNotIn("theme-toggle", response.text)
+        self.assertNotIn("LIVE DATABASE FEED", response.text)
         self.assertNotIn("CONVERSATION STUDIO", response.text)
         self.assertNotIn("REAL-TIME SPEECH INSIGHTS", response.text)
         self.assertNotIn("Every voice", response.text)
@@ -27,6 +53,12 @@ class DashboardTests(unittest.TestCase):
         self.assertNotIn("Voices in the room", response.text)
         self.assertNotIn("Most recent speech", response.text)
         self.assertNotIn("<footer", response.text)
+
+    def test_application_icon_is_served_as_png(self):
+        response = TestClient(app).get("/static/Well-Actually-Zapped-Pixel-Icon.png")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "image/png")
 
     def test_speech_row_serializes_utc_timestamp_and_nullable_fields(self):
         row = {
@@ -71,6 +103,47 @@ class DashboardTests(unittest.TestCase):
 
         self.assertIn("id: 2026-10-22T18:30:15.123456\n", message)
         self.assertIn('data: {"content":"first line\\nsecond line"}\n\n', message)
+
+    def test_zap_updates_are_emitted_once_for_previously_seen_rows(self):
+        rows = [
+            {
+                "time": datetime(2026, 10, 22, 18, 30, 15, 123456),
+                "sid": 2,
+                "content": "Well, actually",
+                "ms_score": None,
+                "zap_sent": True,
+            }
+        ]
+        announced_zap_ids = set()
+
+        updates = collect_new_zap_updates(rows, announced_zap_ids)
+
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(updates[0]["time"], "2026-10-22T18:30:15.123456")
+        self.assertTrue(updates[0]["zap_sent"])
+        self.assertEqual(
+            collect_new_zap_updates(rows, announced_zap_ids),
+            [],
+        )
+
+    def test_speech_update_does_not_move_the_event_source_resume_cursor(self):
+        message = encode_sse(
+            "speech-update",
+            {"time": "2026-10-22T18:30:15.123456", "zap_sent": True},
+        )
+
+        self.assertNotIn("id:", message)
+
+    def test_zap_poll_selects_updated_rows_through_latest_transcript_time(self):
+        through = datetime(2026, 10, 22, 18, 30, 15)
+        cursor = FakeCursor([])
+
+        rows = asyncio.run(fetch_zapped(cursor, through))
+
+        self.assertEqual(rows, [])
+        self.assertIn('"zap_sent" IS TRUE', cursor.query)
+        self.assertIn('"time" <= %s', cursor.query)
+        self.assertEqual(cursor.parameters, (through,))
 
 
 if __name__ == "__main__":
