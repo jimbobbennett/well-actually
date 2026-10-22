@@ -65,6 +65,7 @@ def serialize_record(row: dict[str, Any]) -> dict[str, Any]:
         "sid": row["sid"],
         "content": row["content"] or "",
         "ms_score": row["ms_score"],
+        "zap_sent": bool(row["zap_sent"]),
     }
 
 
@@ -79,7 +80,7 @@ def encode_sse(event: str, data: dict[str, Any], event_id: str | None = None) ->
 
 async def fetch_latest(cursor, limit: int) -> list[dict[str, Any]]:
     await cursor.execute(
-        'SELECT "time", "sid", "content", "ms_score" '
+        'SELECT "time", "sid", "content", "ms_score", "zap_sent" '
         "FROM public.speech_log ORDER BY \"time\" DESC LIMIT %s",
         (limit,),
     )
@@ -88,7 +89,7 @@ async def fetch_latest(cursor, limit: int) -> list[dict[str, Any]]:
 
 async def fetch_after(cursor, after: datetime) -> list[dict[str, Any]]:
     await cursor.execute(
-        'SELECT "time", "sid", "content", "ms_score" '
+        'SELECT "time", "sid", "content", "ms_score", "zap_sent" '
         'FROM public.speech_log WHERE "time" > %s ORDER BY "time" ASC LIMIT 500',
         (after,),
     )
