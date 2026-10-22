@@ -12,6 +12,8 @@ class DashboardTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Conversation", response.text)
+        self.assertIn('id="theme-toggle"', response.text)
+        self.assertIn('aria-label="Dark mode"', response.text)
         self.assertNotIn("CONVERSATION STUDIO", response.text)
         self.assertNotIn("REAL-TIME SPEECH INSIGHTS", response.text)
         self.assertNotIn("Every voice", response.text)
@@ -32,6 +34,7 @@ class DashboardTests(unittest.TestCase):
             "sid": 2,
             "content": "Hello!",
             "ms_score": None,
+            "zap_sent": True,
         }
 
         record = serialize_record(row)
@@ -40,6 +43,9 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(record["sid"], 2)
         self.assertEqual(record["content"], "Hello!")
         self.assertIsNone(record["ms_score"])
+        self.assertTrue(record["zap_sent"])
+        row["zap_sent"] = False
+        self.assertFalse(serialize_record(row)["zap_sent"])
 
     def test_cursor_accepts_utc_event_id(self):
         cursor = parse_cursor("2026-10-22T18:30:15.123456Z")
