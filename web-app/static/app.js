@@ -20,7 +20,7 @@ const jumpButton = document.querySelector("#jump-button");
 
 const seenIds = new Set();
 const seenOrder = [];
-let receivedCount = 0;
+let messageCount = 0;
 
 function speakerStyle(sid) {
   if (sid === null || sid === undefined) {
@@ -59,40 +59,53 @@ function appendMessage(record, eventId) {
   if (!rememberEvent(eventId)) return;
   emptyState.hidden = true;
 
-  const style = speakerStyle(record.sid);
-  const message = document.createElement("article");
-  message.className = "message";
-  message.style.setProperty("--speaker-color", style.color);
-  message.style.setProperty("--speaker-soft", style.soft);
+  const speakerId = String(record.sid ?? "");
+  const content = record.content || "Transcript text unavailable.";
+  const previousMessage = feed.lastElementChild;
+  if (
+    previousMessage?.classList.contains("message") &&
+    previousMessage.dataset.speakerId === speakerId
+  ) {
+    const bubble = previousMessage.querySelector(".message-bubble");
+    bubble.textContent += `\n${content}`;
+  } else {
+    const style = speakerStyle(record.sid);
+    const message = document.createElement("article");
+    message.className = "message";
+    message.dataset.speakerId = speakerId;
+    message.style.setProperty("--speaker-color", style.color);
+    message.style.setProperty("--speaker-soft", style.soft);
 
-  const avatar = document.createElement("span");
-  avatar.className = "speaker-avatar";
-  avatar.textContent = record.sid === null ? "?" : `S${record.sid}`;
-  avatar.setAttribute("aria-hidden", "true");
+    const avatar = document.createElement("span");
+    avatar.className = "speaker-avatar";
+    avatar.textContent = record.sid === null ? "?" : `S${record.sid}`;
+    avatar.setAttribute("aria-hidden", "true");
 
-  const body = document.createElement("div");
-  body.className = "message-body";
-  const meta = document.createElement("div");
-  meta.className = "message-meta";
-  const name = document.createElement("span");
-  name.className = "speaker-name";
-  name.textContent = record.sid === null ? "Unassigned speaker" : `Speaker ${record.sid}`;
-  const time = document.createElement("time");
-  time.className = "message-time";
-  time.dateTime = `${record.time}Z`;
-  time.textContent = formatTime(record.time);
-  time.title = new Date(`${record.time}Z`).toLocaleString();
-  const bubble = document.createElement("div");
-  bubble.className = "message-bubble";
-  bubble.textContent = record.content || "Transcript text unavailable.";
+    const body = document.createElement("div");
+    body.className = "message-body";
+    const meta = document.createElement("div");
+    meta.className = "message-meta";
+    const name = document.createElement("span");
+    name.className = "speaker-name";
+    name.textContent = record.sid === null ? "Unassigned speaker" : `Speaker ${record.sid}`;
+    const time = document.createElement("time");
+    time.className = "message-time";
+    time.dateTime = `${record.time}Z`;
+    time.textContent = formatTime(record.time);
+    time.title = new Date(`${record.time}Z`).toLocaleString();
+    const bubble = document.createElement("div");
+    bubble.className = "message-bubble";
+    bubble.textContent = content;
 
-  meta.append(name, time);
-  body.append(meta, bubble);
-  message.append(avatar, body);
-  feed.append(message);
+    meta.append(name, time);
+    body.append(meta, bubble);
+    message.append(avatar, body);
+    feed.append(message);
 
-  receivedCount += 1;
-  feedCount.textContent = `${receivedCount} ${receivedCount === 1 ? "message" : "messages"}`;
+    messageCount += 1;
+    feedCount.textContent = `${messageCount} ${messageCount === 1 ? "message" : "messages"}`;
+  }
+
   feed.scrollTop = feed.scrollHeight;
 }
 
