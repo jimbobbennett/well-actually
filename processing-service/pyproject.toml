@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "well-actually-processing"
+version = "0.1.0"
+description = "UNO Q audio processing service for Well Actually"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+speech = ["azure-cognitiveservices-speech>=1.53.0,<2"]
+service = [
+    "azure-cognitiveservices-speech>=1.53.0,<2",
+    "psycopg[binary]>=3.2,<4",
+]
+
+[project.scripts]
+well-actually-capture = "well_actually_processing.audio_capture:main"
+well-actually-speech-smoke = "well_actually_processing.speech_smoke:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,3 @@
+name: Well Actually Recording Indicator
+icon: "🎙️"
+description: Pulses the UNO Q LED matrix microphone icon while speech logging is active.
