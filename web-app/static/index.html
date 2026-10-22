@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f5ff" />
+    <title>Well Actually — Live Speech</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <div class="page-glow page-glow--one" aria-hidden="true"></div>
+    <div class="page-glow page-glow--two" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Well Actually home">
+          <span class="brand-mark">🙊</span>
+          <span class="brand-copy">
+            <strong>Well Actually</strong>
+          </span>
+        </a>
+        <div class="connection-pill" id="connection-pill" data-state="connecting">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span id="connection-label">Connecting to speech log</span>
+        </div>
+      </header>
+
+      <main>
+        <div class="content-grid">
+          <section class="conversation-card" aria-labelledby="conversation-title">
+            <header class="conversation-header">
+              <div>
+                <div class="section-kicker"><span class="live-indicator"></span> LIVE DATABASE FEED</div>
+                <h2 id="conversation-title">Conversation</h2>
+              </div>
+              <button class="jump-button" id="jump-button" type="button">
+                Jump to latest <span aria-hidden="true">↓</span>
+              </button>
+            </header>
+
+            <div class="feed-toolbar">
+              <span><span class="tiny-wave">〰</span> SPEECH_LOG <span class="feed-divider">/</span> PUBLIC</span>
+              <span id="feed-count">0 messages</span>
+            </div>
+
+            <div class="message-feed" id="message-feed" aria-live="polite" aria-relevant="additions text">
+              <div class="empty-state" id="empty-state">
+                <div class="empty-mic" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" fill="none">
+                    <rect x="17" y="5" width="14" height="24" rx="7" fill="currentColor" />
+                    <path d="M11 22a13 13 0 0 0 26 0M24 35v8m-8 0h16" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                  </svg>
+                </div>
+                <strong>All ears, no words yet</strong>
+                <span>New speech will show up here as soon as it arrives.</span>
+              </div>
+            </div>
+
+          </section>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

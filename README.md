@@ -3,3 +3,5 @@
 Research and architecture notes for the Well Actually comedy mansplaining detector are in [docs/research.md](docs/research.md).
 
 The Python processing-service starter is in [processing-service/](processing-service/README.md).
+
+The live speech-log dashboard is in [web-app/](web-app/README.md).
