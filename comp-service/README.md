@@ -74,6 +74,15 @@ Prompt Hub access is required even when optional trace export is disabled.
 
 ### Trace export
 
+Completed, valid classifier LLM spans include typed `output.condescending` and
+`output.reexplaining` booleans and numeric `output.confidence` alongside the
+original response and token usage. AX exposes these as `attributes.output.*`.
+Invalid, incomplete, and failed responses do not receive these decision fields.
+Only spans exported after this change are enriched; historical spans are unchanged.
+For a dashboard use `(condescending = true OR reexplaining = true) AND confidence > 0.85`.
+The device's existing threshold comparison remains `>=`, so a confidence of exactly
+0.85 qualifies for the device but not for that dashboard filter.
+
 Install the project dependencies with `.venv/bin/python -m pip install -e .`.
 Set `ARIZE_SPACE_ID`, `ARIZE_API_KEY`, and `ARIZE_PROJECT_NAME` in the ignored
 `.env` file to enable OpenAI SDK tracing. The configured project is `speech-coach`.
