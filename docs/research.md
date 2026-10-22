@@ -5,7 +5,7 @@
 
 ## Goal
 
-Build a meeting-sidekick prototype that listens to a shared microphone, transcribes speech with speaker labels, and looks for a specific idea-credit pattern: one person proposes an idea, it is not taken up, and another person later restates it as their own. When the pattern is plausible, the system sends a vibration to a Pavlok device. A fast-follow feature locally detects the phrase “well actually” and vibrates immediately.
+Build a meeting-sidekick prototype that listens to a shared microphone, transcribes speech with speaker labels, and looks for a specific idea-credit pattern: one person proposes an idea, it is not taken up, and another person later restates it as their own. When the pattern is plausible, the system sends a vibration to a Pavlok device. A fast-follow feature matches “well actually” in finalized Azure Speech text and triggers immediately.
 
 This is a signal for a comedy/demo experience, not a reliable judgment of intent or a tool for evaluating people. The audio and transcript alone cannot establish gender, intent, who originated an idea, or all the context of a conversation. The system should report a **possible idea-credit mismatch**, with evidence and uncertainty, rather than claim that a person is definitively mansplaining.
 
@@ -15,9 +15,7 @@ This is a signal for a comedy/demo experience, not a reliable judgment of intent
 flowchart LR
     subgraph Edge["UNO Q · Linux service starts on boot"]
         Mic["eMeet M0"] --> Capture["USB audio capture"]
-        Capture --> Wake["Edge Impulse wake-word detection"]
         Capture --> App["MVP app and session orchestration"]
-        Wake -->|well-actually event| App
     end
 
     subgraph Cloud["Cloud services"]
@@ -36,7 +34,7 @@ flowchart LR
     LLM -->|structured candidate / no-candidate| App
     App -->|trace, model output, timing| AX
     App -->|possible mismatch| Pavlok
-    App -->|direct wake-word notification| Pavlok
+    App -->|recognized-phrase notification| Pavlok
     App -.->|optional offload if overloaded| Functions
     Functions -.-> DB
     Functions -.-> LLM
@@ -44,9 +42,9 @@ flowchart LR
     Functions -.-> Pavlok
 ```
 
-For the four-hour MVP, the UNO Q's Linux application owns audio capture, local “well actually” detection, transcript handling, analysis orchestration, TimescaleDB writes, and Pavlok API calls. Configure it to start automatically at boot and run continuously, creating a session for each boot. Audio transcription/diarization and idea analysis use cloud APIs: Azure Speech and Azure OpenAI with GPT-6 Luna, respectively. Connect directly from the UNO Q to TimescaleDB and Pavlok; do not add an ingestion service, queue, or worker. If the UNO Q cannot sustain the workload, move the app-side analysis and integrations to an Azure service such as Azure Functions, while keeping audio capture and local wake-word detection on the device.
+For the four-hour MVP, the UNO Q's Linux application owns audio capture, transcript handling, recognized-phrase matching, analysis orchestration, TimescaleDB writes, and Pavlok API calls. Configure it to start automatically at boot and run continuously, creating a session for each boot. Audio transcription/diarization and idea analysis use cloud APIs: Azure Speech and Azure OpenAI with GPT-6 Luna, respectively. Match “well actually” in finalized Azure Speech text, ignoring punctuation and case. Connect directly from the UNO Q to TimescaleDB and Pavlok; do not add an ingestion service, queue, or worker. If the UNO Q cannot sustain the workload, move the app-side analysis and integrations to an Azure service such as Azure Functions.
 
-Treat this as a live demo with a working network and providers. Keep the wake-word path independent of transcription and idea analysis. Save finalized segments, analysis outcomes, and timestamps to TimescaleDB as the app receives them; losing data during a crash is acceptable for this MVP.
+Treat this as a live demo with a working network and providers. Phrase matching depends on Azure's finalized transcription, but remains independent of idea analysis. Save finalized segments, analysis outcomes, and timestamps to TimescaleDB as the app receives them; losing data during a crash is acceptable for this MVP.
 
 ## Component research and decisions
 
@@ -75,7 +73,7 @@ Write directly from the UNO Q using a PostgreSQL client and a connection string 
 | `sessions` | PostgreSQL table | ID, start/end time |
 | `transcript_segments` | Hypertable | Event time, session ID, segment ID, speaker label, text, recognition metadata |
 | `analysis_results` | PostgreSQL table | Session ID, window start/end, outcome, confidence, cited segment IDs, explanation, created time |
-| `notifications` | PostgreSQL table | Session ID, event type, analysis-result ID or wake-word time, request/result status, created time |
+| `notifications` | PostgreSQL table | Session ID, event type, analysis-result ID or recognized-phrase time, request/result status, created time |
 
 Do not build raw-audio storage for the demo. Keep the hypertable's unique indexes compatible with the time partition column.
 
@@ -100,22 +98,22 @@ Send the structured input, model/version, output, cited segment IDs, threshold d
 
 Pavlok’s published API v5 exposes `POST https://api.pavlok.com/api/v5/stimulus/send`. Its documented stimulus types include `vibe`, with values from 1 through 100; the API uses an `Authorization` header. The published login endpoint returns a user token. This means an initial notification integration can be an HTTPS call from the service or UNO Q rather than reverse-engineering Bluetooth behavior.
 
-**MVP decision:** call the published HTTPS API directly from the UNO Q for both analysis and wake-word events. Use the `vibe` stimulus only, starting at value `50` (the midpoint of the documented 1–100 range); this can be adjusted after testing. Keep credentials outside source control. No separate notification service, cooldown, or fallback transport is planned.
+**MVP decision:** call the published HTTPS API directly from the UNO Q for both analysis and recognized-phrase events. Use the `vibe` stimulus only, starting at value `50` (the midpoint of the documented 1–100 range); this can be adjusted after testing. Keep credentials outside source control. No separate notification service, cooldown, or fallback transport is planned.
 
 Confirm that the specific device/account and API access work before relying on this path for a live show; public docs establish the endpoint shape, not device pairing, delivery latency, or service availability guarantees.
 
-### “Well actually” wake word
+### “Well actually” transcript trigger
 
-**MVP decision:** use the Arduino Edge Impulse wake-word detection block on the UNO Q to detect “well actually” locally and send only a wake-word event to the Pavlok API; do not send surrounding audio through this path. Repeated detections may produce repeated vibrations. Validate the block against the phrase and demo environment during bring-up.
+**Current implementation:** use Azure Speech's finalized recognized text to match adjacent `well` and `actually` words case-insensitively, with punctuation ignored. A match triggers a five-second lightning bolt on the UNO Q LED matrix. The historical Edge Impulse training work is documented in [wake-word data generation and training](wake-word-training.md), but the running app no longer loads that model.
 
 ## Processing and notification flow
 
 1. The UNO Q boots, starts the application service, and creates a session. Participants in the demo have consented to capture and transcription.
-2. The UNO Q captures the audio. The local wake-word listener can send a wake-word event independently.
-3. The UNO Q streams audio to Azure Speech, receives finalized diarized segments, and writes them directly to TimescaleDB.
+2. The UNO Q captures audio and streams it to Azure Speech.
+3. The UNO Q receives finalized diarized segments, checks each segment for the recognized phrase, and writes it directly to TimescaleDB.
 4. On every finalized speaker change, the app analyzes the latest 30 seconds of finalized segments. If a speaker continues, it analyzes each consecutive 30-second audio window. Each run sends a trace to Arize AX.
 5. Store both `possible_mismatch` and `no_candidate` results. For a qualifying mismatch, call Pavlok directly and store the notification result.
-6. A local “well actually” detection calls Pavlok independently of the transcript-analysis flow.
+6. A “well actually” match in finalized transcript text calls Pavlok independently of the transcript-analysis flow.
 
 Use audio/service timestamps as canonical event times and store analysis/notification times for demo evaluation. Interfaces between components are intentionally small and defined below; there is no broker or durable queue.
 
@@ -153,7 +151,7 @@ Use audio/service timestamps as canonical event times and store analysis/notific
 
 Use `no_candidate` when the qualification rule is not satisfied. The app rejects citations to segment IDs not present in the analysis input. The app stores this output and sends the input/output plus Azure OpenAI deployment/model and timing metadata to Arize AX. Configure Arize AX with the API key supplied for the demo; add human annotations to the traces in Arize AX to review detections and tune the provisional threshold.
 
-**Pavlok request:** send a `vibe` stimulus for either a qualifying analysis result or a local wake-word event. Store the event type and API response status in `notifications`; transcript text is not included in the notification.
+**Pavlok request:** send a `vibe` stimulus for either a qualifying analysis result or a recognized-phrase event. Store the event type and API response status in `notifications`; transcript text is not included in the notification.
 
 ## Privacy, safety, and demo constraints
 
@@ -169,7 +167,7 @@ Use `no_candidate` when the qualification rule is not satisfied. The app rejects
 1. **Hardware and credentials:** verify eMeet USB capture on UNO Q; configure Azure Speech, Azure OpenAI (GPT-6 Luna deployment), TimescaleDB, Arize AX, and Pavlok credentials outside source control.
 2. **Persistence and transcription:** create the MVP tables, stream to Azure Speech, and write finalized segments directly to TimescaleDB.
 3. **Analysis and evaluation:** implement the every-speaker-change/30-second-window trigger, structured GPT-6 Luna result, initial `0.8` threshold, and Arize AX trace/annotation flow.
-4. **Notifications:** verify a Pavlok vibration at value `50` for a qualifying result and a local “well actually” event.
+4. **Notifications:** verify a Pavlok vibration at value `50` for a qualifying result and a “well actually” transcript match.
 5. **Demo run:** test with consenting participants, review detections and misses in Arize AX, and adjust the threshold if time permits.
 6. **Boot behavior:** configure and verify automatic service startup when the UNO Q boots.
 
@@ -178,7 +176,7 @@ Use `no_candidate` when the qualification rule is not satisfied. The app rejects
 - Provider comparison, offline operation, retries, transcript correction/reordering, durable queues, deduplication, and recovery.
 - Cooldowns, user controls, alert presentation, and calibrated confidence.
 - Production retention/deletion policy and operational monitoring beyond Arize AX demo traces.
-- If the UNO Q is overloaded, move the app-side analysis and integrations to Azure Functions; keep microphone capture and local phrase detection on-device.
+- If the UNO Q is overloaded, move the app-side analysis and integrations to Azure Functions; keep microphone capture on-device.
 
 ## References
 
