@@ -35,7 +35,7 @@ Capture audio from the eMeet 10 on an Arduino UNO Q, stream it to Azure Speech f
 - [x] Define an audio-session lifecycle, supported PCM format, reconnect behavior, and environment-based Speech/database configuration.
 - [x] Implement the continuously running UNO Q Python service that streams microphone audio to Azure Speech.
 - [x] Handle finalized recognition separately; persist only finalized segments.
-- [x] Map `Guest-N` to integer `sid=N`, use the UTC audio offset for `time`, store recognized text in `content`, and write `NULL` to `ms_score`; missing speaker IDs remain `NULL`.
+- [x] Map `Guest-N` to integer `sid=N`, use the UTC audio offset for `time`, store recognized text in `content`, write `NULL` to `ms_score`, and set `zap_sent` only after a successful Pavlok request; missing speaker IDs remain `NULL`.
 - [x] Add a pulsing microphone icon on the UNO Q LED matrix while the service runs.
 
 ### TimescaleDB persistence
@@ -70,7 +70,7 @@ Capture audio from the eMeet 10 on an Arduino UNO Q, stream it to Azure Speech f
 - **Done:** Azure AI Speech resource and its endpoint/key/language configuration are set up in the local ignored `.env`.
 - **Done:** rotated the Speech key after it was exposed in a command result; the replacement is in the local ignored `.env` and the UNO Q's mode-600 smoke-test environment file.
 - **Done:** a live 30-second smoke test streamed eMeet audio to Azure and printed seven finalized diarized segments; no audio or transcript was saved by the smoke-test utility.
-- **Done:** verified `public.speech_log` is a TimescaleDB hypertable with `time TIMESTAMP`, nullable integer `sid`, text `content`, and nullable integer `ms_score`.
+- **Done:** verified `public.speech_log` is a TimescaleDB hypertable with `time TIMESTAMP`, nullable integer `sid`, text `content`, nullable integer `ms_score`, and boolean `zap_sent`.
 - **Done:** the running UNO Q service wrote 10 live speech segments; recent rows had UTC timestamps, integer speaker IDs, and `NULL` `ms_score`.
 - **Done:** verified that stopping the systemd unit stops the LED matrix app, and starting it again restarts both.
 - **Done:** listed Tiger Cloud services; `speechlog_db_service` is READY in `us-east-1`.
