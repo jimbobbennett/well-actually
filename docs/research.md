@@ -96,9 +96,9 @@ Send the structured input, model/version, output, cited segment IDs, threshold d
 
 ### Pavlok notification
 
-Pavlok’s published API v5 exposes `POST https://api.pavlok.com/api/v5/stimulus/send`. Its documented stimulus types include `vibe`, with values from 1 through 100; the API uses an `Authorization` header. The published login endpoint returns a user token. This means an initial notification integration can be an HTTPS call from the service or UNO Q rather than reverse-engineering Bluetooth behavior.
+Pavlok’s published API v5 exposes `POST https://api.pavlok.com/api/v5/stimulus/send`. Its documented stimulus types are `zap`, `beep`, and `vibe`, with values from 1 through 100; the API uses an `Authorization` header. The published login endpoint returns a user token. This means an initial notification integration can be an HTTPS call from the service or UNO Q rather than reverse-engineering Bluetooth behavior.
 
-**MVP decision:** call the published HTTPS API directly from the UNO Q for both analysis and recognized-phrase events. Use the `vibe` stimulus only, starting at value `50` (the midpoint of the documented 1–100 range); this can be adjusted after testing. Keep credentials outside source control. No separate notification service, cooldown, or fallback transport is planned.
+**MVP decision:** call the published HTTPS API directly from the UNO Q for recognized-phrase events. Configure the stimulus type (`zap`, `beep`, or `vibe`) and level (`1`–`100`) through the service environment; default to `beep` at value `50`. Keep credentials outside source control. No separate notification service, cooldown, or fallback transport is planned.
 
 Confirm that the specific device/account and API access work before relying on this path for a live show; public docs establish the endpoint shape, not device pairing, delivery latency, or service availability guarantees.
 
