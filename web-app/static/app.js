@@ -19,6 +19,8 @@ const jumpButton = document.querySelector("#jump-button");
 
 const seenIds = new Set();
 const seenOrder = [];
+const recordsByEventId = new Map();
+const messageStates = new WeakMap();
 let messageCount = 0;
 
 function speakerStyle(sid) {
@@ -62,6 +64,28 @@ function createZapIndicator() {
   return indicator;
 }
 
+function setZapSent(recordState, zapSent, animate = false) {
+  if (recordState.zapSent === zapSent) return;
+  recordState.zapSent = zapSent;
+  const { bubbleState } = recordState;
+  bubbleState.zapCount += zapSent ? 1 : -1;
+  const isShocked = bubbleState.zapCount > 0;
+  bubbleState.bubble.classList.toggle("message-bubble--shocked", isShocked);
+
+  const indicator = bubbleState.messageContent.querySelector(".zap-indicator");
+  if (isShocked && !indicator) {
+    bubbleState.messageContent.append(createZapIndicator());
+  } else if (!isShocked && indicator) {
+    indicator.remove();
+  }
+
+  if (animate && zapSent) {
+    bubbleState.bubble.classList.remove("message-bubble--zap-detected");
+    void bubbleState.bubble.offsetWidth;
+    bubbleState.bubble.classList.add("message-bubble--zap-detected");
+  }
+}
+
 function appendMessage(record, eventId) {
   if (!rememberEvent(eventId)) return;
   const shouldScrollToLatest =
@@ -71,19 +95,14 @@ function appendMessage(record, eventId) {
   const speakerId = String(record.sid ?? "");
   const content = record.content || "Transcript text unavailable.";
   const previousMessage = feed.lastElementChild;
+  let bubbleState;
   if (
     previousMessage?.classList.contains("message") &&
     previousMessage.dataset.speakerId === speakerId
   ) {
     const bubble = previousMessage.querySelector(".message-bubble");
     bubble.textContent += `\n${content}`;
-    const messageContent = previousMessage.querySelector(".message-content");
-    if (record.zap_sent === true) {
-      bubble.classList.add("message-bubble--shocked");
-      if (!messageContent.querySelector(".zap-indicator")) {
-        messageContent.append(createZapIndicator());
-      }
-    }
+    bubbleState = messageStates.get(previousMessage);
   } else {
     const style = speakerStyle(record.sid);
     const message = document.createElement("article");
@@ -112,28 +131,40 @@ function appendMessage(record, eventId) {
     const bubble = document.createElement("div");
     bubble.className = "message-bubble";
     bubble.textContent = content;
-    if (record.zap_sent === true) {
-      bubble.classList.add("message-bubble--shocked");
-    }
 
     meta.append(name, time);
     const messageContent = document.createElement("div");
     messageContent.className = "message-content";
     messageContent.append(bubble);
-    if (record.zap_sent === true) {
-      messageContent.append(createZapIndicator());
-    }
     body.append(meta, messageContent);
     message.append(avatar, body);
     feed.append(message);
+    bubbleState = { bubble, messageContent, zapCount: 0 };
+    messageStates.set(message, bubbleState);
+    bubble.addEventListener("animationend", (animationEvent) => {
+      if (animationEvent.animationName === "zap-impact") {
+        bubble.classList.remove("message-bubble--zap-detected");
+      }
+    });
 
     messageCount += 1;
     feedCount.textContent = `${messageCount} ${messageCount === 1 ? "message" : "messages"}`;
   }
 
+  const recordState = { bubbleState, zapSent: false };
+  recordsByEventId.set(eventId || record.time, recordState);
+  setZapSent(recordState, record.zap_sent === true);
+
   if (shouldScrollToLatest) {
     feed.scrollTop = feed.scrollHeight;
   }
+}
+
+function updateMessage(record) {
+  const recordState = recordsByEventId.get(record.time);
+  if (!recordState) return;
+  const zapSent = record.zap_sent === true;
+  setZapSent(recordState, zapSent, zapSent && !recordState.zapSent);
 }
 
 jumpButton.addEventListener("click", () => {
@@ -157,6 +188,14 @@ stream.addEventListener("speech", (event) => {
     setConnection("Database stream connected");
   } catch {
     setConnection("Received an unreadable speech event");
+  }
+});
+
+stream.addEventListener("speech-update", (event) => {
+  try {
+    updateMessage(JSON.parse(event.data));
+  } catch {
+    setConnection("Received an unreadable speech update");
   }
 });
 

@@ -96,12 +96,39 @@ async def fetch_after(cursor, after: datetime) -> list[dict[str, Any]]:
     return await cursor.fetchall()
 
 
+async def fetch_zapped(cursor, through: datetime) -> list[dict[str, Any]]:
+    await cursor.execute(
+        'SELECT "time", "sid", "content", "ms_score", "zap_sent" '
+        'FROM public.speech_log WHERE "zap_sent" IS TRUE AND "time" <= %s '
+        'ORDER BY "time" ASC',
+        (through,),
+    )
+    return await cursor.fetchall()
+
+
+def collect_new_zap_updates(
+    rows: list[dict[str, Any]],
+    announced_zap_ids: set[str],
+) -> list[dict[str, Any]]:
+    updates = []
+    for row in rows:
+        record = serialize_record(row)
+        if not record["zap_sent"]:
+            continue
+        record_id = record["time"]
+        if record_id not in announced_zap_ids:
+            announced_zap_ids.add(record_id)
+            updates.append(record)
+    return updates
+
+
 async def speech_events(
     request: Request,
     dsn: str,
     initial_cursor: datetime | None,
 ) -> Any:
     cursor_time = initial_cursor
+    announced_zap_ids: set[str] = set()
     last_heartbeat = time.monotonic()
     try:
         connection = await AsyncConnection.connect(
@@ -118,6 +145,8 @@ async def speech_events(
                     for row in rows:
                         record = serialize_record(row)
                         cursor_time = datetime.fromisoformat(record["time"])
+                        if record["zap_sent"]:
+                            announced_zap_ids.add(record["time"])
                         yield encode_sse("speech", record, record["time"])
                     yield encode_sse("connected", {"initial_count": len(rows)})
                 else:
@@ -134,7 +163,18 @@ async def speech_events(
                     for row in rows:
                         record = serialize_record(row)
                         cursor_time = datetime.fromisoformat(record["time"])
+                        if record["zap_sent"]:
+                            announced_zap_ids.add(record["time"])
                         yield encode_sse("speech", record, record["time"])
+
+                    if cursor_time is not None:
+                        # No updated_at column exists, so recheck true flags for late changes.
+                        zapped_rows = await fetch_zapped(cursor, cursor_time)
+                        for record in collect_new_zap_updates(
+                            zapped_rows,
+                            announced_zap_ids,
+                        ):
+                            yield encode_sse("speech-update", record)
 
                     current_time = time.monotonic()
                     if current_time - last_heartbeat >= HEARTBEAT_INTERVAL_SECONDS:
