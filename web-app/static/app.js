@@ -1,20 +1,23 @@
 const palette = [
-  { color: "#7459e8", soft: "#f0ecff" },
-  { color: "#eb6593", soft: "#fff0f5" },
-  { color: "#239dba", soft: "#e8f8fc" },
-  { color: "#cf8c27", soft: "#fff5df" },
-  { color: "#1ca785", soft: "#e5f8f2" },
-  { color: "#d451aa", soft: "#ffedf8" },
-  { color: "#3976d2", soft: "#edf4ff" },
-  { color: "#d96a43", soft: "#fff0e9" },
-  { color: "#57934f", soft: "#eff8ec" },
-  { color: "#765b9f", soft: "#f4efff" },
+  { color: "#7459e8", soft: "#f0ecff", darkColor: "#b49bff", darkSoft: "rgba(116, 89, 232, 0.16)" },
+  { color: "#eb6593", soft: "#fff0f5", darkColor: "#ff8fb8", darkSoft: "rgba(235, 101, 147, 0.15)" },
+  { color: "#239dba", soft: "#e8f8fc", darkColor: "#65dfff", darkSoft: "rgba(35, 157, 186, 0.17)" },
+  { color: "#cf8c27", soft: "#fff5df", darkColor: "#ffd166", darkSoft: "rgba(207, 140, 39, 0.16)" },
+  { color: "#1ca785", soft: "#e5f8f2", darkColor: "#50e5bd", darkSoft: "rgba(28, 167, 133, 0.16)" },
+  { color: "#d451aa", soft: "#ffedf8", darkColor: "#ff89db", darkSoft: "rgba(212, 81, 170, 0.15)" },
+  { color: "#3976d2", soft: "#edf4ff", darkColor: "#84aaff", darkSoft: "rgba(57, 118, 210, 0.17)" },
+  { color: "#d96a43", soft: "#fff0e9", darkColor: "#ff9a70", darkSoft: "rgba(217, 106, 67, 0.16)" },
+  { color: "#57934f", soft: "#eff8ec", darkColor: "#98ed88", darkSoft: "rgba(87, 147, 79, 0.16)" },
+  { color: "#765b9f", soft: "#f4efff", darkColor: "#d3a6ff", darkSoft: "rgba(118, 91, 159, 0.17)" },
 ];
 
 const feed = document.querySelector("#message-feed");
 const emptyState = document.querySelector("#empty-state");
 const connectionPill = document.querySelector("#connection-pill");
 const connectionLabel = document.querySelector("#connection-label");
+const themeToggle = document.querySelector("#theme-toggle");
+const themeToggleIcon = document.querySelector("#theme-toggle-icon");
+const themeToggleLabel = document.querySelector("#theme-toggle-label");
 const feedCount = document.querySelector("#feed-count");
 const jumpButton = document.querySelector("#jump-button");
 
@@ -23,10 +26,16 @@ const seenOrder = [];
 let messageCount = 0;
 
 function speakerStyle(sid) {
+  const isDark = document.documentElement.dataset.theme === "dark";
   if (sid === null || sid === undefined) {
-    return { color: "#8b89a2", soft: "#f0eff4" };
+    return isDark
+      ? { color: "#b7b4ca", soft: "rgba(183, 180, 202, 0.12)" }
+      : { color: "#8b89a2", soft: "#f0eff4" };
   }
-  return palette[(Math.max(1, Number(sid)) - 1) % palette.length];
+  const speaker = palette[(Math.max(1, Number(sid)) - 1) % palette.length];
+  return isDark
+    ? { color: speaker.darkColor, soft: speaker.darkSoft }
+    : speaker;
 }
 
 function formatTime(value) {
@@ -41,6 +50,7 @@ function formatTime(value) {
 
 function setConnection(state, label) {
   connectionPill.dataset.state = state;
+  connectionPill.setAttribute("aria-label", label);
   connectionLabel.textContent = label;
 }
 
@@ -55,8 +65,19 @@ function rememberEvent(id) {
   return true;
 }
 
+function createZapIndicator() {
+  const indicator = document.createElement("span");
+  indicator.className = "zap-indicator";
+  indicator.setAttribute("role", "img");
+  indicator.setAttribute("aria-label", "Zap sent");
+  indicator.textContent = "⚡";
+  return indicator;
+}
+
 function appendMessage(record, eventId) {
   if (!rememberEvent(eventId)) return;
+  const shouldScrollToLatest =
+    feed.scrollHeight - feed.clientHeight - feed.scrollTop <= 8;
   emptyState.hidden = true;
 
   const speakerId = String(record.sid ?? "");
@@ -68,6 +89,10 @@ function appendMessage(record, eventId) {
   ) {
     const bubble = previousMessage.querySelector(".message-bubble");
     bubble.textContent += `\n${content}`;
+    const messageContent = previousMessage.querySelector(".message-content");
+    if (record.zap_sent === true && !messageContent.querySelector(".zap-indicator")) {
+      messageContent.append(createZapIndicator());
+    }
   } else {
     const style = speakerStyle(record.sid);
     const message = document.createElement("article");
@@ -98,7 +123,13 @@ function appendMessage(record, eventId) {
     bubble.textContent = content;
 
     meta.append(name, time);
-    body.append(meta, bubble);
+    const messageContent = document.createElement("div");
+    messageContent.className = "message-content";
+    messageContent.append(bubble);
+    if (record.zap_sent === true) {
+      messageContent.append(createZapIndicator());
+    }
+    body.append(meta, messageContent);
     message.append(avatar, body);
     feed.append(message);
 
@@ -106,8 +137,33 @@ function appendMessage(record, eventId) {
     feedCount.textContent = `${messageCount} ${messageCount === 1 ? "message" : "messages"}`;
   }
 
-  feed.scrollTop = feed.scrollHeight;
+  if (shouldScrollToLatest) {
+    feed.scrollTop = feed.scrollHeight;
+  }
 }
+
+function setTheme(theme) {
+  const isDark = theme === "dark";
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  themeToggle.setAttribute("aria-pressed", String(isDark));
+  themeToggleIcon.textContent = isDark ? "☀" : "☾";
+  themeToggleLabel.textContent = isDark ? "Light mode" : "Dark mode";
+  document.querySelector("#theme-color").content = isDark ? "#080910" : "#f7f5ff";
+  localStorage.setItem("well-actually-theme", isDark ? "dark" : "light");
+
+  for (const message of feed.querySelectorAll(".message")) {
+    const speakerId = message.dataset.speakerId;
+    const sid = speakerId === "" ? null : Number(speakerId);
+    const style = speakerStyle(sid);
+    message.style.setProperty("--speaker-color", style.color);
+    message.style.setProperty("--speaker-soft", style.soft);
+  }
+}
+
+setTheme(localStorage.getItem("well-actually-theme") ?? "dark");
+themeToggle.addEventListener("click", () => {
+  setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+});
 
 jumpButton.addEventListener("click", () => {
   feed.scrollTo({ top: feed.scrollHeight, behavior: "smooth" });

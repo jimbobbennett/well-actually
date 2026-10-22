@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f7f5ff" />
+    <meta id="theme-color" name="theme-color" content="#f7f5ff" />
     <title>Well Actually — Live Speech</title>
     <link rel="stylesheet" href="/static/styles.css" />
     <script src="/static/app.js" defer></script>
@@ -20,9 +20,27 @@
             <strong>Well Actually</strong>
           </span>
         </a>
-        <div class="connection-pill" id="connection-pill" data-state="connecting">
-          <span class="connection-dot" aria-hidden="true"></span>
-          <span id="connection-label">Connecting to speech log</span>
+        <div class="topbar-actions">
+          <button
+            class="theme-toggle"
+            id="theme-toggle"
+            type="button"
+            aria-label="Dark mode"
+            aria-pressed="false"
+          >
+            <span class="theme-toggle-icon" id="theme-toggle-icon" aria-hidden="true">☾</span>
+            <span class="theme-toggle-label" id="theme-toggle-label">Dark mode</span>
+          </button>
+          <div
+            class="connection-pill"
+            id="connection-pill"
+            data-state="connecting"
+            role="status"
+            aria-label="Connecting to speech log"
+          >
+            <span class="connection-dot" aria-hidden="true"></span>
+            <span id="connection-label">Connecting to speech log</span>
+          </div>
         </div>
       </header>
 
