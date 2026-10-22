@@ -18,8 +18,8 @@ from .pavlok import PavlokClient, PavlokClientError
 
 LOGGER = logging.getLogger("well_actually_processing")
 INSERT_SPEECH_LOG_SQL = """
-    INSERT INTO public.speech_log ("time", "sid", "content", "ms_score")
-    VALUES (%s, %s, %s, %s)
+    INSERT INTO public.speech_log ("time", "sid", "content", "ms_score", "zap_sent")
+    VALUES (%s, %s, %s, %s, %s)
 """
 SESSION_MAX_SECONDS = 30 * 60
 RECONNECT_DELAY_SECONDS = 5
@@ -34,6 +34,7 @@ class SpeechLogRecord:
     time: datetime
     sid: int | None
     content: str
+    zap_sent: bool = False
 
 
 def speaker_id_to_number(speaker_id: str | None) -> int | None:
@@ -51,7 +52,11 @@ def contains_well_actually_phrase(text: str) -> bool:
     )
 
 
-def build_speech_log_record(result, stream_started_at: datetime) -> SpeechLogRecord | None:
+def build_speech_log_record(
+    result,
+    stream_started_at: datetime,
+    zap_sent: bool = False,
+) -> SpeechLogRecord | None:
     content = result.text or ""
     if not content.strip():
         return None
@@ -69,6 +74,7 @@ def build_speech_log_record(result, stream_started_at: datetime) -> SpeechLogRec
         time=event_time_utc.replace(tzinfo=None),
         sid=speaker_id_to_number(getattr(result, "speaker_id", None)),
         content=content,
+        zap_sent=zap_sent,
     )
 
 
@@ -91,7 +97,7 @@ class SpeechLogStore:
             raise ServiceError("Could not connect to the configured TimescaleDB.") from exc
         try:
             self._connection.execute(
-                'SELECT "time", "sid", "content", "ms_score" '
+                'SELECT "time", "sid", "content", "ms_score", "zap_sent" '
                 "FROM public.speech_log WHERE false"
             )
             self._connection.rollback()
@@ -114,7 +120,13 @@ class SpeechLogStore:
                         self._connect()
                     self._connection.execute(
                         INSERT_SPEECH_LOG_SQL,
-                        (record.time, record.sid, record.content, None),
+                        (
+                            record.time,
+                            record.sid,
+                            record.content,
+                            None,
+                            record.zap_sent,
+                        ),
                     )
                     self._connection.commit()
                     return
@@ -191,13 +203,14 @@ def _run_transcription_session(
         result = event.result
         if result.reason != speechsdk.ResultReason.RecognizedSpeech:
             return
+        zap_sent = False
         if contains_well_actually_phrase(result.text or ""):
-            _on_well_actually_detected(led_indicator, pavlok_client)
+            zap_sent = _on_well_actually_detected(led_indicator, pavlok_client)
         try:
             origin = stream_started_at[0]
             if origin is None:
                 raise ServiceError("Speech arrived before the audio stream was initialized.")
-            record = build_speech_log_record(result, origin)
+            record = build_speech_log_record(result, origin, zap_sent=zap_sent)
             if record is None:
                 return
             store.insert(record)
@@ -285,19 +298,21 @@ def _run_transcription_session(
 def _on_well_actually_detected(
     led_indicator: LedIndicator,
     pavlok_client: PavlokClient | None = None,
-) -> None:
+) -> bool:
     LOGGER.info("Recognized phrase 'Well actually'; requesting a 5-second lightning bolt.")
     try:
         led_indicator.show_phrase_detected()
     except LedIndicatorError:
         LOGGER.exception("Could not signal the LED matrix after phrase recognition.")
     if pavlok_client is None:
-        return
+        return False
     try:
         pavlok_client.send_vibe()
         LOGGER.info("Sent Pavlok vibe request after phrase recognition.")
+        return True
     except PavlokClientError:
         LOGGER.exception("Could not send the Pavlok vibe request.")
+        return False
 
 
 def run_service(stop_event: threading.Event) -> None:
