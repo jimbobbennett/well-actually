@@ -1,14 +1,15 @@
 # Processing service
 
-Python starter package for the Arduino UNO Q audio processing service. The UNO Q runs Linux, so this service is intended to run as a Linux process; audio capture and Edge Impulse integration still need to be verified on the actual hardware.
+Python package for the Arduino UNO Q audio processing service. It streams microphone audio to Azure Speech, persists finalized speech segments, and triggers the LED matrix when Azure recognizes “Well actually”.
 
 ## Responsibilities
 
 - Capture audio from the eMeet 10 on the UNO Q.
 - Stream audio to Azure Speech and normalize finalized diarized segments.
 - Persist finalized segments to Tiger Data TimescaleDB.
-- Run local wake-word detection independently from cloud transcription.
-- Send wake-word events to the future API once its contract is available.
+- Detect the exact phrase “Well actually” in finalized Azure Speech text, ignoring case and punctuation.
+- Show a lightning bolt on the LED matrix for five seconds when the phrase is recognized.
+- Send recognized-phrase events to the future API once its contract is available.
 
 Keep these integrations behind small modules/interfaces so contributors can work independently and test with fakes before hardware or credentials are available. Do not commit credentials, local `.env` files, or raw audio.
 
@@ -22,7 +23,7 @@ processing-service/
 ├── .gitignore                     # Local environments and secrets
 ├── deploy/                        # UNO Q deployment script and systemd user-unit template
 ├── src/well_actually_processing/  # Installable package, audio capture, and processing service
-├── unoq-led-indicator/            # UNO Q microphone icon animation app
+├── unoq-led-indicator/            # UNO Q microphone and phrase-triggered LED app
 └── tests/                         # Fast tests that do not need hardware or cloud access
 ```
 
@@ -31,7 +32,7 @@ As implementation is added, keep boundaries clear within `well_actually_processi
 - `audio`: microphone capture and audio format handling
 - `speech`: Azure Speech client and transcript normalization
 - `persistence`: PostgreSQL/TimescaleDB writes and migrations
-- `wake_word`: Edge Impulse integration and local detection events
+- `speech`: Azure Speech streaming and recognized-phrase detection
 - `events`: future API client and event contract
 
 Add tests alongside each behavior. Keep hardware/cloud calls at the edges so unit tests can use fakes.
@@ -88,7 +89,11 @@ The smoke test remains available with `well-actually-speech-smoke`; the continuo
 
 The systemd user service captures ALSA PCM continuously, streams it to Azure Speech, maps `Guest-N` speaker labels to integer `sid=N`, and inserts finalized recognized speech into `public.speech_log`. It stores the segment's UTC start time as a timezone-naive UTC value because the table's `time` column has no timezone, writes the recognized text to `content`, and inserts `NULL` for `ms_score`. Missing/unrecognized speaker labels are stored as `NULL`.
 
-The service starts the Arduino App Lab LED indicator app before recording. Its LED matrix pulses a microphone icon until the service stops. Deploy the package, then create `~/.config/well-actually-processing/service.env` on the UNO Q with `AZURE_SPEECH_ENDPOINT`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_LANGUAGE`, and `TIMESCALEDB_URL`; restrict it with `chmod 600`. The deploy script does not transfer `.env` files.
+The service starts the Arduino App Lab LED indicator app before recording and streams the captured audio to Azure Speech. On each finalized recognized segment, it tokenizes the transcript case-insensitively and detects adjacent `well` and `actually` words; punctuation between them is ignored. A match is logged and sends a Unix datagram through the app directory mounted into the LED app container (`unoq-led-indicator/well-actually-led.sock` on the host and `/app/well-actually-led.sock` in the container). The LED app logs receipt and uses an acknowledged App Lab Bridge call; the sketch shows a lightning bolt for five seconds before resuming the pulsing microphone icon. If `WELL_ACTUALLY_LED_SOCKET` is overridden, configure the same shared path in both processes. The service does not load an Edge Impulse model or run a second audio inference path.
+
+Follow phrase-detection and socket-send logs with `journalctl --user -u well-actually-processing.service -f`; follow LED-app receipt and Bridge-acknowledgement logs with `docker logs -f well-actually-processing-unoq-led-indicator-main-1`.
+
+Create `~/.config/well-actually-processing/service.env` on the UNO Q with `AZURE_SPEECH_ENDPOINT`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_LANGUAGE`, and `TIMESCALEDB_URL`; restrict it with `chmod 600`. The LED socket defaults to the shared app-directory path described above. The deploy script does not transfer `.env` files.
 
 Start and stop the service remotely with:
 
@@ -97,7 +102,7 @@ ssh arduino@<uno-q-host> 'systemctl --user start well-actually-processing.servic
 ssh arduino@<uno-q-host> 'systemctl --user stop well-actually-processing.service'
 ```
 
-The unit restarts on service failures but is not enabled to start automatically at device boot. Stopping it terminates audio capture, closes the Azure stream, and stops the matrix indicator.
+The unit restarts on service failures but is not enabled to start automatically at device boot. Stopping it terminates audio capture, closes the Azure stream, and stops the matrix indicator. Phrase-event API delivery remains pending until its contract and credentials are provided.
 
 Before submitting a change, run the tests and describe any hardware or cloud validation that could not be performed. Keep pull requests focused on one component or contract at a time, and update this README when the package layout or setup changes.
 
@@ -113,6 +118,6 @@ The UNO Q must have Python 3.10+, `python3-venv`, `alsa-utils`, Arduino App Lab,
 UNO_HOST=uno@192.168.1.42 ./deploy/deploy-to-uno.sh
 ```
 
-The script transfers this folder to `~/well-actually-processing`, excluding local secrets, audio captures, and development-only files, then creates a virtual environment and installs the Speech SDK and PostgreSQL driver. It installs the systemd unit but does not copy `.env` or start the service.
+The script transfers this folder to `~/well-actually-processing`, excluding local secrets, audio captures, the unused model directory, and development-only files, then creates a virtual environment and installs the Speech SDK and PostgreSQL driver. It installs the systemd unit but does not copy `.env` or start the service.
 
 Create its mode-600 environment file before starting the service. Use `systemctl --user enable --now well-actually-processing.service` only if it should also start automatically at device boot; enable user lingering if it must run without an interactive login.

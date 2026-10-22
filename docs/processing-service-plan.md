@@ -7,7 +7,7 @@
 
 ## Goal
 
-Capture audio from the eMeet 10 on an Arduino UNO Q, stream it to Azure Speech for transcription and speaker diarization, and write finalized diarized segments to Tiger Data TimescaleDB. Independently, detect a small set of wake words on the UNO Q with an Arduino Edge Impulse-trained block and emit an event to an API whose contract will be supplied later.
+Capture audio from the eMeet 10 on an Arduino UNO Q, stream it to Azure Speech for transcription and speaker diarization, and write finalized diarized segments to Tiger Data TimescaleDB. Detect the exact phrase “Well actually” in finalized Azure Speech text, ignoring punctuation, and show a lightning bolt on the LED matrix for five seconds. Emit an event to an API once its contract is supplied.
 
 ## Checklist
 
@@ -45,11 +45,12 @@ Capture audio from the eMeet 10 on an Arduino UNO Q, stream it to Azure Speech f
 - [x] Add bounded insert retries and explicit error logging for transient database failures.
 - [x] Confirm the service does not retain raw audio.
 
-### Local wake word and future API
+### Transcript phrase detection and future API
 
-- [ ] Confirm the wake-word set and matching trained Arduino Edge Impulse block/model.
-- [ ] Integrate local wake-word detection independently from Azure transcription.
-- [ ] Emit a wake-word event with session ID, detected word/class, and timestamp; tune repeated-detection behavior for the model.
+- [x] Detect adjacent “well actually” words in finalized Azure Speech text, ignoring case and punctuation.
+- [x] Send the recognized-phrase event through the shared socket and acknowledged App Lab Bridge call.
+- [x] Show a lightning bolt on the LED matrix for five seconds after a phrase match.
+- [ ] Emit a recognized-phrase event with session ID and timestamp after the future API contract is supplied.
 - [ ] Obtain the future API contract and credentials.
 - [ ] Implement the API client behind an event adapter, keeping credentials outside source control.
 
@@ -57,7 +58,9 @@ Capture audio from the eMeet 10 on an Arduino UNO Q, stream it to Azure Speech f
 
 - [ ] Test device capture, Azure transcription/diarization, and persisted timestamps/speaker labels with a representative, consented sample audio.
 - [ ] Test database failure reporting and retry behavior.
-- [ ] Test wake-word true/false detections and API-event delivery.
+- [x] Test case-insensitive, punctuation-agnostic phrase matching and LED notification behavior with host-side tests.
+- [x] Confirm two live Azure phrase matches and acknowledged Bridge requests on the UNO Q.
+- [ ] Confirm the visible five-second LED output on the device; test API-event delivery after the contract is available.
 - [x] Verify the systemd user service starts and stops cleanly and the LED indicator follows its lifecycle.
 - [ ] Enable automatic startup at device boot if required.
 
@@ -75,8 +78,9 @@ Capture audio from the eMeet 10 on an Arduino UNO Q, stream it to Azure Speech f
 - **Available:** Azure CLI is installed and authenticated to the Visual Studio Enterprise subscription.
 - **Available:** Tiger CLI and Tiger MCP are installed and authenticated/configured.
 - **Waiting:** accuracy validation of the chosen language and diarization behavior with a representative, consented audio sample.
-- **Waiting:** wake-word set and the matching trained Edge Impulse block/model.
-- **Waiting:** future wake-word API contract and credentials.
+- **Current implementation:** the exact phrase “Well actually” is detected from finalized Azure Speech transcripts. The Edge Impulse model is no longer loaded or deployed by the processing service; its training notes remain for reference.
+- **Waiting:** future recognized-phrase API contract and credentials.
 - **Runtime note:** the service will use PostgreSQL directly; Tiger CLI/MCP are for management and development access.
 - **Hardware check:** UNO Q host `llm-test` sees eMeet M0; 3-second and 30-second WAV captures passed validation at 16 kHz mono, 16-bit PCM. Temporary audio files were deleted after validation.
-- **Not included yet:** local wake-word detection and wake-word API integration. Automatic startup at device boot is not enabled.
+- **Not included yet:** recognized-phrase API integration. Automatic startup at device boot is not enabled.
+- **Hardware validation:** two spoken phrase matches reached the UNO Q Bridge successfully; visible five-second LED output still needs physical confirmation.
