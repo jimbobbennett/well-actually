@@ -307,17 +307,20 @@ def _on_well_actually_detected(
     if pavlok_client is None:
         return False
     try:
-        pavlok_client.send_beep()
-        LOGGER.info("Sent Pavlok beep request after phrase recognition.")
+        pavlok_client.send_stimulus()
+        LOGGER.info("Sent Pavlok stimulus after phrase recognition.")
         return True
     except PavlokClientError:
-        LOGGER.exception("Could not send the Pavlok beep request.")
+        LOGGER.exception("Could not send the Pavlok stimulus.")
         return False
 
 
 def run_service(stop_event: threading.Event) -> None:
     speechsdk = _load_speech_sdk()
-    pavlok_client = PavlokClient.from_environment()
+    try:
+        pavlok_client = PavlokClient.from_environment()
+    except ValueError as exc:
+        raise ServiceError(f"Invalid Pavlok configuration: {exc}") from exc
     if pavlok_client is None:
         LOGGER.warning(
             "Pavlok integration is disabled; set WAKE_WORD_API_TOKEN to enable it."

@@ -5,8 +5,12 @@ from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
 from well_actually_processing.pavlok import (
+    ALLOWED_STIMULUS_TYPES,
     DEFAULT_PAVLOK_API_URL,
-    DEFAULT_STIMULUS_VALUE,
+    DEFAULT_STIMULUS_LEVEL,
+    DEFAULT_STIMULUS_TYPE,
+    MAX_STIMULUS_LEVEL,
+    MIN_STIMULUS_LEVEL,
     REQUEST_TIMEOUT_SECONDS,
     PavlokClient,
     PavlokClientError,
@@ -15,10 +19,10 @@ from well_actually_processing.pavlok import (
 
 class PavlokClientTests(unittest.TestCase):
     @patch("well_actually_processing.pavlok.urlopen")
-    def test_sends_documented_beep_request(self, urlopen):
+    def test_sends_default_beep_request(self, urlopen):
         urlopen.return_value.__enter__.return_value = SimpleNamespace(status=200)
 
-        PavlokClient("test-token").send_beep()
+        PavlokClient("test-token").send_stimulus()
 
         request = urlopen.call_args.args[0]
         self.assertEqual(request.full_url, DEFAULT_PAVLOK_API_URL)
@@ -29,8 +33,8 @@ class PavlokClientTests(unittest.TestCase):
             json.loads(request.data),
             {
                 "stimulus": {
-                    "stimulusType": "beep",
-                    "stimulusValue": DEFAULT_STIMULUS_VALUE,
+                    "stimulusType": DEFAULT_STIMULUS_TYPE,
+                    "stimulusValue": DEFAULT_STIMULUS_LEVEL,
                 }
             },
         )
@@ -47,13 +51,38 @@ class PavlokClientTests(unittest.TestCase):
             "test-token",
             api_url="https://pavlok.example.test/send",
             timeout=2,
-        ).send_beep()
+            stimulus_type="zap",
+            stimulus_level=MAX_STIMULUS_LEVEL,
+        ).send_stimulus()
 
         self.assertEqual(
             urlopen.call_args.args[0].full_url,
             "https://pavlok.example.test/send",
         )
         self.assertEqual(urlopen.call_args.kwargs["timeout"], 2)
+        self.assertEqual(
+            json.loads(urlopen.call_args.args[0].data)["stimulus"],
+            {"stimulusType": "zap", "stimulusValue": MAX_STIMULUS_LEVEL},
+        )
+
+    @patch("well_actually_processing.pavlok.urlopen")
+    def test_supports_every_documented_stimulus_type(self, urlopen):
+        urlopen.return_value.__enter__.return_value = SimpleNamespace(status=200)
+
+        for stimulus_type in ALLOWED_STIMULUS_TYPES:
+            with self.subTest(stimulus_type=stimulus_type):
+                PavlokClient(
+                    "test-token",
+                    stimulus_type=stimulus_type,
+                    stimulus_level=MIN_STIMULUS_LEVEL,
+                ).send_stimulus()
+                self.assertEqual(
+                    json.loads(urlopen.call_args.args[0].data)["stimulus"],
+                    {
+                        "stimulusType": stimulus_type,
+                        "stimulusValue": MIN_STIMULUS_LEVEL,
+                    },
+                )
 
     @patch("well_actually_processing.pavlok.urlopen")
     def test_reports_http_errors_without_exposing_token(self, urlopen):
@@ -66,7 +95,7 @@ class PavlokClientTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(PavlokClientError, "HTTP 401") as error:
-            PavlokClient("secret-token").send_beep()
+            PavlokClient("secret-token").send_stimulus()
 
         self.assertNotIn("secret-token", str(error.exception))
 
@@ -75,13 +104,21 @@ class PavlokClientTests(unittest.TestCase):
         urlopen.side_effect = URLError("connection refused")
 
         with self.assertRaisesRegex(PavlokClientError, "Could not reach"):
-            PavlokClient("secret-token").send_beep()
+            PavlokClient("secret-token").send_stimulus()
 
     def test_requires_a_token_and_https_endpoint(self):
         with self.assertRaisesRegex(ValueError, "token is required"):
             PavlokClient(" ")
         with self.assertRaisesRegex(ValueError, "must use HTTPS"):
             PavlokClient("test-token", api_url="http://example.test/send")
+        with self.assertRaisesRegex(ValueError, "stimulus type"):
+            PavlokClient("test-token", stimulus_type="shock")
+        with self.assertRaisesRegex(ValueError, "between 1 and 100"):
+            PavlokClient("test-token", stimulus_level=0)
+        with self.assertRaisesRegex(ValueError, "between 1 and 100"):
+            PavlokClient("test-token", stimulus_level=101)
+        with self.assertRaisesRegex(ValueError, "between 1 and 100"):
+            PavlokClient("test-token", stimulus_level=50.5)
 
     @patch.dict("os.environ", {}, clear=True)
     def test_environment_configuration_is_optional(self):
@@ -92,6 +129,8 @@ class PavlokClientTests(unittest.TestCase):
         {
             "WAKE_WORD_API_TOKEN": "test-token",
             "WAKE_WORD_API_URL": "https://pavlok.example.test/send",
+            "PAVLOK_STIMULUS_TYPE": "vibe",
+            "PAVLOK_STIMULUS_LEVEL": "1",
         },
         clear=True,
     )
@@ -100,6 +139,8 @@ class PavlokClientTests(unittest.TestCase):
 
         self.assertIsNotNone(client)
         self.assertEqual(client._api_url, "https://pavlok.example.test/send")
+        self.assertEqual(client._stimulus_type, "vibe")
+        self.assertEqual(client._stimulus_level, 1)
 
     @patch.dict(
         "os.environ",

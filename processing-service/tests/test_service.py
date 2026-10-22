@@ -57,20 +57,20 @@ class SpeechLogMappingTests(unittest.TestCase):
 
 
 class PhraseDetectionActionTests(unittest.TestCase):
-    def test_phrase_detection_signals_led_and_sends_beep(self):
+    def test_phrase_detection_signals_led_and_sends_pavlok_stimulus(self):
         led_indicator = Mock()
         pavlok_client = Mock()
 
         zap_sent = _on_well_actually_detected(led_indicator, pavlok_client)
 
         led_indicator.show_phrase_detected.assert_called_once_with()
-        pavlok_client.send_beep.assert_called_once_with()
+        pavlok_client.send_stimulus.assert_called_once_with()
         self.assertTrue(zap_sent)
 
     def test_pavlok_failure_does_not_prevent_led_signal(self):
         led_indicator = Mock()
         pavlok_client = Mock()
-        pavlok_client.send_beep.side_effect = PavlokClientError("request failed")
+        pavlok_client.send_stimulus.side_effect = PavlokClientError("request failed")
 
         with self.assertLogs("well_actually_processing", level="ERROR"):
             zap_sent = _on_well_actually_detected(led_indicator, pavlok_client)
