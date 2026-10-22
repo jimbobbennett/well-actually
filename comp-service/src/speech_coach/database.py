@@ -1,8 +1,11 @@
 from datetime import datetime, timedelta
+import logging
 import psycopg
 from psycopg import sql
 
 from .turns import Context, Entry
+
+LOG = logging.getLogger(__name__)
 
 
 class SpeechLog:
@@ -39,11 +42,17 @@ class SpeechLog:
                  timedelta(seconds=self.settings.lookback_seconds),
                  self.settings.context_rows + 1)).fetchall()
         # Only evaluate a transition: the newest two entries must be different speakers.
-        if len(rows) < 2 or rows[0][1] == rows[1][1]:
+        LOG.debug("Database rows fetched: table=%s; rows=%s", table_name, len(rows))
+        if len(rows) < 2:
+            LOG.debug("Context skipped: fewer than two rows in window")
+            return None
+        if rows[0][1] == rows[1][1]:
+            LOG.debug("Context skipped: newest two rows have same speaker; speaker=%s", rows[0][1])
             return None
         current = Entry(*rows[0])
         previous_end = Entry(*rows[1])
         if current.sid is None or previous_end.sid is None or not current.content:
+            LOG.debug("Context skipped: missing speaker ID or empty current content")
             return None
         previous_query = sql.SQL("""SELECT
                 string_agg(COALESCE(content, ''), E'\\n' ORDER BY time) AS turn_text,
@@ -60,7 +69,10 @@ class SpeechLog:
             previous_text, previous_rows = conn.execute(previous_query,
                 (previous_end.sid, previous_end.time, previous_end.time, previous_end.sid)).fetchone()
         if not previous_rows or not previous_text or not previous_text.strip():
+            LOG.debug("Context skipped: empty previous speaker turn")
             return None
         previous = tuple(Entry(datetime.fromisoformat(row['time']), row['sid'],
                                row['content'], row['ms_score']) for row in previous_rows)
+        LOG.debug("Context ready: previous_rows=%s; current_rows=1; row_time=%s; speaker=%s",
+                  len(previous), current.time.isoformat(), current.sid)
         return Context(previous=previous, current=(current,), previous_text=previous_text)

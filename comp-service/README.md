@@ -166,6 +166,16 @@ column stays named `ms_score`.
 
 ## Pavlok and activation log
 
+Each worker start creates a separate `logs/debug-<unix-start-nanoseconds>.log`.
+The number is Unix epoch time in nanoseconds; log timestamps are UTC.
+This file records database row counts and skip reasons, LLM call starts and
+duration, parsed flags/confidence/tone, trigger eligibility, cooldown skips,
+Pavlok outcomes, and `zap_sent` update success or failure. Raw transcripts,
+tone evidence quotes, credentials, and provider error bodies are omitted.
+Application INFO messages and errors also appear in the console; detailed
+per-poll skip messages are in the debug file. `logs/worker-errors.log` remains
+the shared error log. All these files are ignored by Git.
+
 Supply the exact Authorization header value from your
 [Pavlok account](https://pavlok.readme.io/reference/intro/authentication).
 The adapter uses the documented

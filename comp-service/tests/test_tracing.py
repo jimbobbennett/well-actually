@@ -1,12 +1,37 @@
 import json
 import unittest
+from unittest.mock import patch
 
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Status, StatusCode
 
-from speech_coach.tracing import DecisionSpanExporter
+from speech_coach.tracing import DecisionSpanExporter, setup_tracing
+
+
+class RoutingTests(unittest.TestCase):
+    def test_live_and_testing_project_routing_reaches_exported_span(self):
+        for testing_mode, expected in ((False, "configured-project"), (True, "speech-coach-test")):
+            sink = InMemorySpanExporter()
+            with self.subTest(testing_mode=testing_mode), patch.dict("os.environ", {
+                "ARIZE_SPACE_ID": "test-space", "ARIZE_API_KEY": "test-key",
+                "ARIZE_PROJECT_NAME": "configured-project",
+            }, clear=True), patch("arize.otel.GRPCSpanExporter", return_value=sink) as exporter, \
+                    patch("opentelemetry.trace.set_tracer_provider"), \
+                    patch("openinference.instrumentation.openai.OpenAIInstrumentor"):
+                provider = setup_tracing(testing_mode)
+                try:
+                    self.assertEqual(exporter.call_args.kwargs["headers"], {"x-project-name": expected})
+                    with provider.get_tracer("routing-test").start_as_current_span("check"):
+                        pass
+                    self.assertTrue(provider.force_flush())
+                    spans = sink.get_finished_spans()
+                    self.assertEqual(len(spans), 1)
+                    self.assertEqual(spans[0].resource.attributes["arize.project.name"], expected)
+                    self.assertEqual(spans[0].resource.attributes["arize.project.type"], "application")
+                finally:
+                    provider.shutdown()
 
 
 class DecisionSpanTests(unittest.TestCase):

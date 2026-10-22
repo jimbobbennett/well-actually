@@ -1,9 +1,12 @@
 from dataclasses import dataclass, field
 import json
 import math
+import logging
 
 from openai import OpenAI
 from .prompts import load_prompt
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -55,8 +58,15 @@ class Classifier:
         }
         response = self.client.chat.completions.create(**request)
         if not response.choices or response.choices[0].finish_reason != "stop":
+            LOG.error("LLM response incomplete: choices=%s; finish_reason=%s",
+                      len(response.choices), response.choices[0].finish_reason if response.choices else None)
             raise ValueError("Incomplete model decision")
-        return Decision.parse(response.choices[0].message.content)
+        try:
+            return Decision.parse(response.choices[0].message.content)
+        except (ValueError, TypeError) as error:
+            LOG.error("LLM decision parse failed: error_type=%s; response content omitted",
+                      type(error).__name__)
+            raise
 
     def close(self):
         self.client.close()

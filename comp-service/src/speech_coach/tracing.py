@@ -74,17 +74,27 @@ class DecisionSpanExporter(SpanExporter):
 def setup_tracing(testing_mode: bool = False):
     """Enable Arize only when all tracing settings are present."""
     names = ("ARIZE_SPACE_ID", "ARIZE_API_KEY", "ARIZE_PROJECT_NAME")
-    if not all(os.getenv(name) for name in names):
+    missing = [name for name in names if not os.getenv(name)]
+    if missing:
         return None
 
-    from arize.otel import BatchSpanProcessor, GRPCSpanExporter, TracerProvider
+    from arize.otel import (
+        ARIZE_PROJECT_NAME_ATTR, BatchSpanProcessor, GRPCSpanExporter,
+        PROJECT_NAME, Resource, TracerProvider,
+    )
     from openinference.instrumentation.openai import OpenAIInstrumentor
     from opentelemetry import trace
 
+    project_name = "speech-coach-test" if testing_mode else os.environ["ARIZE_PROJECT_NAME"]
     provider = TracerProvider(
         space_id=os.environ["ARIZE_SPACE_ID"],
         api_key=os.environ["ARIZE_API_KEY"],
-        project_name="speech-coach-test" if testing_mode else os.environ["ARIZE_PROJECT_NAME"],
+        project_name=project_name,
+        resource=Resource.create({
+            PROJECT_NAME: project_name,
+            ARIZE_PROJECT_NAME_ATTR: project_name,
+            "arize.project.type": "application",
+        }),
         verbose=False,
     )
     # Adding a processor replaces this provider's default exporter through Arize's
@@ -92,6 +102,7 @@ def setup_tracing(testing_mode: bool = False):
     provider.add_span_processor(BatchSpanProcessor(span_exporter=DecisionSpanExporter(
         GRPCSpanExporter(
             space_id=os.environ["ARIZE_SPACE_ID"], api_key=os.environ["ARIZE_API_KEY"],
+            headers={"x-project-name": project_name},
         )
     )))
     trace.set_tracer_provider(provider)
