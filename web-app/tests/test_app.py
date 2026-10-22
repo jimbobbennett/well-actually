@@ -12,8 +12,12 @@ class DashboardTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Conversation", response.text)
-        self.assertIn('id="theme-toggle"', response.text)
-        self.assertIn('aria-label="Dark mode"', response.text)
+        self.assertIn('/static/Well-Actually-Zapped-Pixel-Icon.png', response.text)
+        self.assertNotIn("🙊", response.text)
+        self.assertIn('data-theme="dark"', response.text)
+        self.assertIn('id="connection-label" class="sr-only"', response.text)
+        self.assertNotIn("theme-toggle", response.text)
+        self.assertNotIn("LIVE DATABASE FEED", response.text)
         self.assertNotIn("CONVERSATION STUDIO", response.text)
         self.assertNotIn("REAL-TIME SPEECH INSIGHTS", response.text)
         self.assertNotIn("Every voice", response.text)
@@ -27,6 +31,12 @@ class DashboardTests(unittest.TestCase):
         self.assertNotIn("Voices in the room", response.text)
         self.assertNotIn("Most recent speech", response.text)
         self.assertNotIn("<footer", response.text)
+
+    def test_application_icon_is_served_as_png(self):
+        response = TestClient(app).get("/static/Well-Actually-Zapped-Pixel-Icon.png")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "image/png")
 
     def test_speech_row_serializes_utc_timestamp_and_nullable_fields(self):
         row = {

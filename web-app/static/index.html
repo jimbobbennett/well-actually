@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta id="theme-color" name="theme-color" content="#f7f5ff" />
+    <meta name="theme-color" content="#090f27" />
+    <link rel="icon" type="image/png" href="/static/Well-Actually-Zapped-Pixel-Icon.png" />
     <title>Well Actually — Live Speech</title>
     <link rel="stylesheet" href="/static/styles.css" />
     <script src="/static/app.js" defer></script>
@@ -15,33 +16,18 @@
     <div class="app-shell">
       <header class="topbar">
         <a class="brand" href="/" aria-label="Well Actually home">
-          <span class="brand-mark">🙊</span>
+          <img
+            class="brand-mark"
+            src="/static/Well-Actually-Zapped-Pixel-Icon.png"
+            alt=""
+          />
           <span class="brand-copy">
             <strong>Well Actually</strong>
           </span>
         </a>
-        <div class="topbar-actions">
-          <button
-            class="theme-toggle"
-            id="theme-toggle"
-            type="button"
-            aria-label="Dark mode"
-            aria-pressed="false"
-          >
-            <span class="theme-toggle-icon" id="theme-toggle-icon" aria-hidden="true">☾</span>
-            <span class="theme-toggle-label" id="theme-toggle-label">Dark mode</span>
-          </button>
-          <div
-            class="connection-pill"
-            id="connection-pill"
-            data-state="connecting"
-            role="status"
-            aria-label="Connecting to speech log"
-          >
-            <span class="connection-dot" aria-hidden="true"></span>
-            <span id="connection-label">Connecting to speech log</span>
-          </div>
-        </div>
+        <span id="connection-label" class="sr-only" role="status" aria-live="polite">
+          Connecting to speech log
+        </span>
       </header>
 
       <main>
@@ -49,7 +35,6 @@
           <section class="conversation-card" aria-labelledby="conversation-title">
             <header class="conversation-header">
               <div>
-                <div class="section-kicker"><span class="live-indicator"></span> LIVE DATABASE FEED</div>
                 <h2 id="conversation-title">Conversation</h2>
               </div>
               <button class="jump-button" id="jump-button" type="button">

@@ -1,6 +1,6 @@
 # Live speech dashboard
 
-A bright, chat-style live view of the `public.speech_log` TimescaleDB hypertable. The Python server keeps the database URL server-side and streams rows to the browser over Server-Sent Events; the browser polls no database credentials and stores no transcript data.
+An 8-bit arcade-inspired live view of the `public.speech_log` TimescaleDB hypertable. The Python server keeps the database URL server-side and streams rows to the browser over Server-Sent Events; the browser polls no database credentials and stores no transcript data.
 
 ## Run locally
 
@@ -23,8 +23,8 @@ uvicorn app:app --reload --host 127.0.0.1 --port 8000
 Open `http://127.0.0.1:8000`. The dashboard loads the latest 80 speech rows and then polls the database once per second through a single SSE connection. It reconnects automatically after an interrupted stream. The recorder must be running to produce new rows; the dashboard does not start or stop audio capture.
 
 Consecutive rows from the same speaker are grouped into one chat bubble, with each transcript segment on a new line.
-When `zap_sent` is true for any row in a grouped bubble, a lightning bolt appears beside that bubble.
-The dashboard defaults to the luminous dark theme. Use the header toggle to switch to the bright light theme; your preference is saved in the browser.
+When `zap_sent` is true for any row in a grouped bubble, a lightning bolt appears beside it and the bubble gets an arcade-style shock pulse with a neon glow every few seconds. The bolt's border pulses in sync with the bubble.
+The dashboard uses a fixed dark theme and the pixel-art zapped speech icon in the header and browser tab. Connection status remains available to screen readers without a visible live badge.
 By default the server listens only on localhost. Do not expose transcript content to a network without adding appropriate authentication and transport security.
 
 ## Data handling
