@@ -40,7 +40,7 @@ class SpeechLogMappingTests(unittest.TestCase):
         self.assertEqual(record.content, "  hello there  ")
         self.assertFalse(record.zap_sent)
 
-    def test_record_marks_successful_vibe_request(self):
+    def test_record_marks_successful_pavlok_request(self):
         result = SimpleNamespace(text="Well actually", offset=0, speaker_id=None)
         origin = datetime.now(timezone.utc)
 
@@ -57,20 +57,20 @@ class SpeechLogMappingTests(unittest.TestCase):
 
 
 class PhraseDetectionActionTests(unittest.TestCase):
-    def test_phrase_detection_signals_led_and_sends_vibe(self):
+    def test_phrase_detection_signals_led_and_sends_beep(self):
         led_indicator = Mock()
         pavlok_client = Mock()
 
         zap_sent = _on_well_actually_detected(led_indicator, pavlok_client)
 
         led_indicator.show_phrase_detected.assert_called_once_with()
-        pavlok_client.send_vibe.assert_called_once_with()
+        pavlok_client.send_beep.assert_called_once_with()
         self.assertTrue(zap_sent)
 
     def test_pavlok_failure_does_not_prevent_led_signal(self):
         led_indicator = Mock()
         pavlok_client = Mock()
-        pavlok_client.send_vibe.side_effect = PavlokClientError("request failed")
+        pavlok_client.send_beep.side_effect = PavlokClientError("request failed")
 
         with self.assertLogs("well_actually_processing", level="ERROR"):
             zap_sent = _on_well_actually_detected(led_indicator, pavlok_client)

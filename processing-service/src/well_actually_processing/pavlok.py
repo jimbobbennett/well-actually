@@ -1,4 +1,4 @@
-"""Send phrase-detected vibe requests to the Pavlok API."""
+"""Send phrase-detected beep requests to the Pavlok API."""
 
 from __future__ import annotations
 
@@ -8,12 +8,12 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 DEFAULT_PAVLOK_API_URL = "https://api.pavlok.com/api/v5/stimulus/send"
-DEFAULT_VIBE_VALUE = 50
+DEFAULT_STIMULUS_VALUE = 50
 REQUEST_TIMEOUT_SECONDS = 5
 
 
 class PavlokClientError(RuntimeError):
-    """Raised when the Pavlok API does not accept a vibe request."""
+    """Raised when the Pavlok API does not accept a stimulus request."""
 
 
 class PavlokClient:
@@ -48,12 +48,12 @@ class PavlokClient:
             api_url=api_url,
         )
 
-    def send_vibe(self) -> None:
+    def send_beep(self) -> None:
         body = json.dumps(
             {
                 "stimulus": {
-                    "stimulusType": "vibe",
-                    "stimulusValue": DEFAULT_VIBE_VALUE,
+                    "stimulusType": "beep",
+                    "stimulusValue": DEFAULT_STIMULUS_VALUE,
                 }
             }
         ).encode("utf-8")

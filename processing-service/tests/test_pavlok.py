@@ -6,7 +6,7 @@ from urllib.error import HTTPError, URLError
 
 from well_actually_processing.pavlok import (
     DEFAULT_PAVLOK_API_URL,
-    DEFAULT_VIBE_VALUE,
+    DEFAULT_STIMULUS_VALUE,
     REQUEST_TIMEOUT_SECONDS,
     PavlokClient,
     PavlokClientError,
@@ -15,10 +15,10 @@ from well_actually_processing.pavlok import (
 
 class PavlokClientTests(unittest.TestCase):
     @patch("well_actually_processing.pavlok.urlopen")
-    def test_sends_documented_vibe_request(self, urlopen):
+    def test_sends_documented_beep_request(self, urlopen):
         urlopen.return_value.__enter__.return_value = SimpleNamespace(status=200)
 
-        PavlokClient("test-token").send_vibe()
+        PavlokClient("test-token").send_beep()
 
         request = urlopen.call_args.args[0]
         self.assertEqual(request.full_url, DEFAULT_PAVLOK_API_URL)
@@ -29,8 +29,8 @@ class PavlokClientTests(unittest.TestCase):
             json.loads(request.data),
             {
                 "stimulus": {
-                    "stimulusType": "vibe",
-                    "stimulusValue": DEFAULT_VIBE_VALUE,
+                    "stimulusType": "beep",
+                    "stimulusValue": DEFAULT_STIMULUS_VALUE,
                 }
             },
         )
@@ -47,7 +47,7 @@ class PavlokClientTests(unittest.TestCase):
             "test-token",
             api_url="https://pavlok.example.test/send",
             timeout=2,
-        ).send_vibe()
+        ).send_beep()
 
         self.assertEqual(
             urlopen.call_args.args[0].full_url,
@@ -66,7 +66,7 @@ class PavlokClientTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(PavlokClientError, "HTTP 401") as error:
-            PavlokClient("secret-token").send_vibe()
+            PavlokClient("secret-token").send_beep()
 
         self.assertNotIn("secret-token", str(error.exception))
 
@@ -75,7 +75,7 @@ class PavlokClientTests(unittest.TestCase):
         urlopen.side_effect = URLError("connection refused")
 
         with self.assertRaisesRegex(PavlokClientError, "Could not reach"):
-            PavlokClient("secret-token").send_vibe()
+            PavlokClient("secret-token").send_beep()
 
     def test_requires_a_token_and_https_endpoint(self):
         with self.assertRaisesRegex(ValueError, "token is required"):

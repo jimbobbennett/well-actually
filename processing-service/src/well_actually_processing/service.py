@@ -307,11 +307,11 @@ def _on_well_actually_detected(
     if pavlok_client is None:
         return False
     try:
-        pavlok_client.send_vibe()
-        LOGGER.info("Sent Pavlok vibe request after phrase recognition.")
+        pavlok_client.send_beep()
+        LOGGER.info("Sent Pavlok beep request after phrase recognition.")
         return True
     except PavlokClientError:
-        LOGGER.exception("Could not send the Pavlok vibe request.")
+        LOGGER.exception("Could not send the Pavlok beep request.")
         return False
 
 
