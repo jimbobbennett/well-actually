@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from .audio_capture import build_raw_capture_command
+from .led_indicator import LedIndicator, LedIndicatorError
 
 LOGGER = logging.getLogger("well_actually_processing")
 INSERT_SPEECH_LOG_SQL = """
@@ -39,6 +40,14 @@ def speaker_id_to_number(speaker_id: str | None) -> int | None:
         return None
     match = re.fullmatch(r"Guest-(\d+)", speaker_id)
     return int(match.group(1)) if match else None
+
+
+def contains_well_actually_phrase(text: str) -> bool:
+    words = re.findall(r"[^\W_]+", text.casefold())
+    return any(
+        words[index : index + 2] == ["well", "actually"]
+        for index in range(len(words) - 1)
+    )
 
 
 def build_speech_log_record(result, stream_started_at: datetime) -> SpeechLogRecord | None:
@@ -147,6 +156,7 @@ def _run_transcription_session(
     speechsdk,
     store: SpeechLogStore,
     stop_event: threading.Event,
+    led_indicator: LedIndicator,
 ) -> None:
     device = os.environ.get("WELL_ACTUALLY_AUDIO_DEVICE", "hw:CARD=M0,DEV=0")
     sample_rate = 16_000
@@ -179,6 +189,8 @@ def _run_transcription_session(
         result = event.result
         if result.reason != speechsdk.ResultReason.RecognizedSpeech:
             return
+        if contains_well_actually_phrase(result.text or ""):
+            _on_well_actually_detected(led_indicator)
         try:
             origin = stream_started_at[0]
             if origin is None:
@@ -268,13 +280,32 @@ def _run_transcription_session(
         raise ServiceError(session_errors[-1])
 
 
+def _on_well_actually_detected(led_indicator: LedIndicator) -> None:
+    LOGGER.info("Recognized phrase 'Well actually'; requesting a 5-second lightning bolt.")
+    try:
+        led_indicator.show_phrase_detected()
+    except LedIndicatorError:
+        LOGGER.exception("Could not signal the LED matrix after phrase recognition.")
+
+
 def run_service(stop_event: threading.Event) -> None:
     speechsdk = _load_speech_sdk()
+    led_indicator = LedIndicator(
+        os.environ.get(
+            "WELL_ACTUALLY_LED_SOCKET",
+            "unoq-led-indicator/well-actually-led.sock",
+        )
+    )
     store = SpeechLogStore(_required_environment("TIMESCALEDB_URL"))
     try:
         while not stop_event.is_set():
             try:
-                _run_transcription_session(speechsdk, store, stop_event)
+                _run_transcription_session(
+                    speechsdk,
+                    store,
+                    stop_event,
+                    led_indicator,
+                )
             except Exception:
                 if stop_event.is_set():
                     break

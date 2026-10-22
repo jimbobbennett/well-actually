@@ -12,6 +12,7 @@ service_dir="$(cd -- "${script_dir}/.." && pwd)"
 COPYFILE_DISABLE=1 tar -czf - \
   --exclude='.env*' \
   --exclude='.venv' \
+  --exclude='models' \
   --exclude='__pycache__' \
   --exclude='.pytest_cache' \
   --exclude='.ruff_cache' \
@@ -20,7 +21,7 @@ COPYFILE_DISABLE=1 tar -czf - \
   --exclude='*.wav' \
   -C "${service_dir}" . \
   | ssh "${UNO_HOST}" \
-    'set -e; mkdir -p "$HOME/well-actually-processing" "$HOME/.config/systemd/user" "$HOME/.config/well-actually-processing"; chmod 700 "$HOME/.config/well-actually-processing"; tar -xzf - -C "$HOME/well-actually-processing"; cd "$HOME/well-actually-processing"; python3 -m venv .venv; .venv/bin/python -m pip install --upgrade pip; .venv/bin/python -m pip install ".[service]"; cp deploy/well-actually-processing.service "$HOME/.config/systemd/user/well-actually-processing.service"; systemctl --user daemon-reload'
+    'set -e; mkdir -p "$HOME/well-actually-processing" "$HOME/.config/systemd/user" "$HOME/.config/well-actually-processing"; chmod 700 "$HOME/.config/well-actually-processing"; tar -xzf - -C "$HOME/well-actually-processing"; rm -f "$HOME/well-actually-processing/models/well-actually-linux-aarch64.eim"; cd "$HOME/well-actually-processing"; python3 -m venv .venv; .venv/bin/python -m pip install --upgrade pip; .venv/bin/python -m pip uninstall -y edge-impulse-linux numpy; .venv/bin/python -m pip install ".[service]"; cp deploy/well-actually-processing.service "$HOME/.config/systemd/user/well-actually-processing.service"; systemctl --user daemon-reload'
 
 echo "Package staged on ${UNO_HOST}:~/well-actually-processing"
 echo "The systemd unit is installed but the service is not started; configure service.env first."
