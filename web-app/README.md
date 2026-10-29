@@ -38,4 +38,6 @@ By default the server listens only on localhost. Do not expose transcript conten
 
 Build the server image from this directory with `docker build -t well-actually-dashboard .`. The Docker build context excludes `.env` and local development files; provide `TIMESCALEDB_URL` to the running server through a secret instead.
 
-The Azure demo configuration is public over HTTPS and has no application login, as approved for the MVP. Do not use it for real or sensitive transcripts without adding authentication and reviewing access controls.
+The dashboard has no application login. Keep it on localhost; do not expose it
+to a network or use it for real or sensitive transcripts without adding
+authentication and reviewing access controls.
