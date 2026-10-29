@@ -3,6 +3,9 @@
 A hackathon worker that polls recent speech in TigerDB/TimescaleDB, compares a
 speaker transition using an external LLM, and activates an opted-in wearer's
 Pavlok vibration when it detects condescension or unnecessary re-explanation.
+Treat this as a fallible demo signal, not a reliable judgment of intent or a
+basis for evaluating people; transcripts alone cannot establish intent or who
+originated an idea.
 
 ## Setup
 

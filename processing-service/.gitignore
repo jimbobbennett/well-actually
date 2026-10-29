@@ -10,4 +10,3 @@ dist/
 *.egg-info/
 captures/
 *.wav
-models/*.eim
