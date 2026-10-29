@@ -4,10 +4,6 @@ Well Actually is a mansplaining trainer! Using the power of AI, if you are
 detected mansplaining, being condescending, or using the phrase “well actually”
 you are in for a shock... literally!
 
-Built for CodeTV, with **Tiger Data as the event sponsor**, the demo puts
-**TimescaleDB** at the center of the experience and uses **Arize AX** for
-managed prompts and LLM observability.
-
 ![Well Actually demo at CodeTV: two participants react as one points to a wrist-worn device.](assets/codetv-demo.jpeg)
 
 ## How it works
