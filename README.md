@@ -105,21 +105,22 @@ CREATE TABLE public.speech_log (
 SELECT create_hypertable('public.speech_log', 'time');
 ```
 
+The `time` column stores UTC timestamps as `TIMESTAMP` without a timezone.
 Create the schema once in Tiger Cloud before starting the services. Do not put
 the database URI or provider keys in source control.
 
 ### Run the processing service on the UNO Q
 
-Clone the repository on your development computer, then configure the board
-with Azure Speech and Tiger Data credentials. The deploy script transfers the
-processing service and installs its systemd user unit; it does not transfer
-`.env` or start the service. From the repository root:
+Configure the UNO Q with Azure Speech and Tiger Data credentials. The deploy
+script transfers the processing service and installs its systemd user unit; it
+does not transfer `.env` or start the service. From the repository root:
 
 ```sh
 cd processing-service
-UNO_HOST=arduino@<uno-q-host> ./deploy/deploy-to-uno.sh
+UNO_HOST=arduino@192.168.1.42 ./deploy/deploy-to-uno.sh
 ```
 
+Replace the example IP with the UNO Q's reachable hostname or address.
 On the UNO Q, create
 `~/.config/well-actually-processing/service.env` with `AZURE_SPEECH_ENDPOINT`,
 `AZURE_SPEECH_KEY`, `AZURE_SPEECH_LANGUAGE`, and `TIMESCALEDB_URL`. Add
@@ -127,7 +128,7 @@ On the UNO Q, create
 with mode `600`, then start the unit:
 
 ```sh
-ssh arduino@<uno-q-host> 'chmod 600 ~/.config/well-actually-processing/service.env && systemctl --user start well-actually-processing.service'
+ssh arduino@192.168.1.42 'chmod 600 ~/.config/well-actually-processing/service.env && systemctl --user start well-actually-processing.service'
 ```
 
 See [processing-service setup](processing-service/README.md) for microphone
