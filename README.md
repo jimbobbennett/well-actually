@@ -1,62 +1,85 @@
 # Well Actually
 
-Well Actually is an experimental live-speech demo built for CodeTV. With
-**Tiger Data as the event sponsor, TimescaleDB is at the center** of the
-experience; **Arize AX** provides managed prompts and LLM observability.
+Well Actually is a mansplaining trainer! Using the power of AI, if you are
+detected mansplaining, being condescending, or using the phrase “well actually”
+you are in for a shock... literally!
+
+Built for CodeTV with **Tiger Data as the event sponsor**, the demo puts
+**TimescaleDB** at the center of the experience and uses **Arize AX** for
+managed prompts and LLM observability.
 
 ![Well Actually demo at CodeTV: two participants react as one points to a wrist-worn device.](assets/codetv-demo.jpeg)
 
-Audio captured on an Arduino UNO Q is transcribed and diarized by Azure Speech.
-Final transcript segments are written to a TimescaleDB hypertable. A speech
-coach reads recent speaker transitions from that same data, evaluates them with
-a configured OpenAI-compatible LLM, and can signal an opted-in Pavlok device.
-A live dashboard makes the stored speech and device activations visible.
+This is a fallible comedy demo, not a reliable judgment of intent or a basis
+for evaluating people. Transcript text alone cannot establish intent or who
+originated an idea.
+
+## Architecture
+
+The microphone audio is transcribed and diarized by Azure Speech. The processing
+service writes finalized speech segments to Tiger Data's TimescaleDB hypertable.
+The speech coach queries recent speaker transitions from that same data and
+uses an LLM to decide whether to activate an opted-in Pavlok device. The live
+dashboard streams the stored speech and activation state to a browser.
 
 ```mermaid
 flowchart LR
-    Mic["UNO Q microphone"] --> Speech["Azure Speech"]
-    Speech --> Processor["Processing service"]
-    Processor --> DB[("Tiger Data · TimescaleDB<br/>speech_log hypertable")]
+    Mic["eMeet M0 microphone"] --> Speech["Azure Speech"]
+    Speech --> Processor["Processing service<br/>Arduino UNO Q"]
+    Processor --> DB[("Tiger Data Cloud<br/>TimescaleDB hypertable")]
+    Processor --> LED["UNO Q LED matrix"]
     DB --> Coach["Speech coach"]
     Prompts["Arize AX Prompt Hub"] --> Coach
     Coach --> LLM["Configured LLM"]
     Coach -. optional traces .-> AX["Arize AX"]
-    Coach --> Pavlok["Pavlok"]
-    DB --> Dashboard["Live dashboard"]
-    Processor --> LED["UNO Q LED matrix"]
+    Processor --> Pavlok["Pavlok API / wearable"]
+    Coach --> Pavlok
+    DB --> Dashboard["Live dashboard<br/>Azure Container Apps"]
 ```
 
-## Why TimescaleDB
+## Hardware and services
 
-TimescaleDB is the shared store for the demo's timestamped, speaker-labeled
-speech segments. The processing service writes finalized Azure Speech results
-to `public.speech_log`; the speech coach queries rolling time windows and
-speaker transitions; and the dashboard streams the same records to the browser.
-This keeps capture, analysis, and visualization centered on one time-series
-dataset.
+| Role | Hardware or service | How it is used |
+|---|---|---|
+| Audio capture | Arduino UNO Q and eMeet M0 USB microphone | Captures meeting audio and runs the always-on processing service. |
+| Transcription | Azure AI Speech | Streams transcription and speaker diarization to the processing service. |
+| Time-series data | Tiger Data Cloud / TimescaleDB | Stores finalized segments in `public.speech_log`; the coach and dashboard query the same hypertable. |
+| Prompt management | Arize AX Prompt Hub | Supplies the versioned classifier prompt used by the speech coach. |
+| LLM evaluation | Configured OpenAI-compatible model | Assesses recent speaker transitions using transcript text. |
+| Observability | Arize AX | Optionally receives LLM traces, including conversation text, model output, and call metadata. |
+| Feedback | UNO Q LED matrix and Pavlok wearable | Shows a lightning bolt for the recognized phrase; the Pavlok stimulus is configurable. |
+| Dashboard hosting | Azure Container Apps | Hosts the live dashboard, which connects to Tiger Data using a secret. |
 
-## Why Arize AX
+### TimescaleDB is the shared record
 
-The speech coach loads its versioned classifier prompt from Arize AX Prompt Hub,
-including separate prompt modes for staging and production. OpenAI SDK trace
-export to Arize AX is optional and can include conversation text, model output,
-and call metadata for inspection. Prompt Hub access is required by the worker,
-even when trace export is disabled.
+The processing service writes finalized transcript segments to
+`public.speech_log`, including their timestamps, speaker IDs, text, and
+activation status. The speech coach queries rolling time windows and speaker
+transitions; the dashboard reads the same hypertable. TimescaleDB therefore
+connects live capture to analysis and visualization without copying the
+transcript into a separate application database.
+
+The Pavlok stimulus can be configured as a zap, beep, or vibration; a literal
+zap depends on the device and stimulus configuration. The speech coach requires
+Arize Prompt Hub access at startup, while trace export is optional.
 
 ## Components
 
-- [Processing service](processing-service/README.md) — streams audio to Azure
-  Speech, stores finalized transcripts in TimescaleDB, and signals the UNO Q
-  LED matrix when it recognizes “Well actually”.
-- [Speech coach](comp-service/README.md) — evaluates speaker transitions and
-  can activate an opted-in Pavlok device.
-- [Live speech dashboard](web-app/README.md) — displays speech-log rows from
-  TimescaleDB.
+- [Processing service](processing-service/README.md) — audio capture, Azure
+  Speech streaming, TimescaleDB writes, and UNO Q LED signaling.
+- [Speech coach](comp-service/README.md) — time-window queries, prompt-managed
+  LLM evaluation, optional Arize tracing, and Pavlok activation.
+- [Live speech dashboard](web-app/README.md) — a FastAPI and Server-Sent Events
+  view over the speech log.
 
-## Privacy and demo scope
+## Privacy and setup
 
 Use only with participants who have consented to capture and transcription.
 Selected dialogue is sent to the configured LLM provider; if Arize trace export
 is enabled, conversation text and model responses are also sent to Arize AX.
-This is a fallible demo signal, not a reliable judgment of intent or a basis
-for evaluating people.
+The Azure demo dashboard is public and has no application login, so do not use
+it for real or sensitive transcripts without adding authentication and
+reviewing access controls.
+
+See each component README for local setup, required credentials, and deployment
+details. The processing service does not retain raw audio.
